@@ -1,12 +1,39 @@
 import os
-from fastapi import FastAPI, Depends, Request, Response
-from fastapi.responses import HTMLResponse
-from starlette.middleware.sessions import SessionMiddleware
-from dotenv import load_dotenv
+from typing import Annotated
 
-from auth0_fastapi.config import Auth0Config
+from dotenv import load_dotenv
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
+from fastapi.responses import HTMLResponse
+from sqlmodel import Field, Session, SQLModel, create_engine, select
+from starlette.middleware.sessions import SessionMiddleware
+
 from auth0_fastapi.auth.auth_client import AuthClient
+from auth0_fastapi.config import Auth0Config
 from auth0_fastapi.server.routes import router, register_auth_routes
+
+class User(SQLModel, table=True):
+    id: int | None = Field(default=None, primary_key=True)
+    username: str = Field(index=True, unique=True)
+    email: str = Field(index=True, unique=True)
+
+
+sqlite_file_name = "database.db"
+sqlite_url = f"sqlite:///{sqlite_file_name}"
+
+connect_args = {"check_same_thread": False}
+engine = create_engine(sqlite_url, connect_args=connect_args)
+
+
+def create_db_and_tables():
+    SQLModel.metadata.create_all(engine)
+
+
+def get_session():
+    with Session(engine) as session:
+        yield session
+
+
+SessionDep = Annotated[Session, Depends(get_session)]
 
 # Load environment variables
 load_dotenv()
@@ -39,6 +66,45 @@ app.state.auth_client = auth_client
 register_auth_routes(router, config)
 app.include_router(router)
 
+@app.on_event("startup")
+def on_startup():
+    create_db_and_tables()
+
+
+@app.post("/users/")
+def create_user(user: User, session: SessionDep) -> User:
+    session.add(user)
+    session.commit()
+    session.refresh(user)
+    return user
+
+
+@app.get("/users/")
+def read_users(
+    session: SessionDep,
+    offset: int = 0,
+    limit: Annotated[int, Query(le=100)] = 100,
+) -> list[User]:
+    users = session.exec(select(User).offset(offset).limit(limit)).all()
+    return users
+
+
+@app.get("/users/{user_id}")
+def read_user(user_id: int, session: SessionDep) -> User:
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    return user
+
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, session: SessionDep):
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    session.delete(user)
+    session.commit()
+    return {"ok": True}
 
 @app.get("/", response_class=HTMLResponse)
 async def home(request: Request, response: Response):
