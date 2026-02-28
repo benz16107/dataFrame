@@ -5,6 +5,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import './App.css'
 import LoginPage from './pages/login'
 import CanvasPage from './pages/canvas'
+import DashboardPage from './pages/dashboard'
 import { fetchProfile } from './lib/auth'
 
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -57,7 +58,8 @@ function App() {
             </RequireAuth>
           }
         />
-        <Route path='/' element={<Navigate to='/canvas' replace />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<DashboardPage />} />
       </Routes>
     </BrowserRouter>
   )

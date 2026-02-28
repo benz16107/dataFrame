@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from pydantic import BaseModel, ConfigDict
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
 from datetime import datetime, timezone
 from sqlalchemy import Column, JSON, text
@@ -118,7 +118,10 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],  # React dev server
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -327,8 +330,8 @@ def root() -> RedirectResponse:
 
 
 @app.get("/post-login")
-def post_login(next: str = "/canvas"):
-    safe_next = _safe_frontend_path(next, "/canvas")
+def post_login(next: str = "/dashboard"):
+    safe_next = _safe_frontend_path(next, "/dashboard")
     return RedirectResponse(url=f"{frontend_base_url}{safe_next}")
 
 
@@ -336,6 +339,37 @@ def post_login(next: str = "/canvas"):
 def post_logout(next: str = "/login"):
     safe_next = _safe_frontend_path(next, "/login")
     return RedirectResponse(url=f"{frontend_base_url}{safe_next}")
+
+
+@app.get("/logout")
+def logout(request: Request, next: str = "/dashboard"):
+    safe_next = _safe_frontend_path(next, "/dashboard")
+    request.session.clear()
+    response = RedirectResponse(url=f"{frontend_base_url}{safe_next}")
+
+    cookie_names = set(request.cookies.keys())
+    cookie_names.update({"session", "appSession", "auth0"})
+
+    for cookie_name in cookie_names:
+        response.delete_cookie(cookie_name, path="/")
+        response.delete_cookie(cookie_name, path="/auth")
+
+    return response
+
+
+@app.post("/logout-session")
+def logout_session(request: Request):
+    request.session.clear()
+    json_response = JSONResponse(content={"ok": True})
+
+    cookie_names = set(request.cookies.keys())
+    cookie_names.update({"session", "appSession", "auth0"})
+
+    for cookie_name in cookie_names:
+        json_response.delete_cookie(cookie_name, path="/")
+        json_response.delete_cookie(cookie_name, path="/auth")
+
+    return json_response
 
 
 @app.get("/profile")
