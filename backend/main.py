@@ -99,6 +99,16 @@ SessionDep = Annotated[Session, Depends(get_session)]
 app = FastAPI(title="Auth0 FastAPI Example")
 frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
+
+def _safe_frontend_path(next_path: str, fallback: str) -> str:
+    if not next_path:
+        return fallback
+    if not next_path.startswith("/"):
+        return fallback
+    if next_path.startswith("//"):
+        return fallback
+    return next_path
+
 session_secret = os.getenv("SESSION_SECRET")
 if not session_secret:
     raise RuntimeError("Missing SESSION_SECRET in environment variables.")
@@ -312,22 +322,19 @@ def batch_save_shape(
 
 
 @app.get("/")
-def root() -> dict[str, str]:
-    return {
-        "message": "Backend is running.",
-        "auth": "Visit /auth/login to start Auth0 login.",
-    }
+def root() -> RedirectResponse:
+    return RedirectResponse(url=f"{frontend_base_url}/")
 
 
 @app.get("/post-login")
 def post_login(next: str = "/canvas"):
-    safe_next = next if next.startswith("/") else "/canvas"
+    safe_next = _safe_frontend_path(next, "/canvas")
     return RedirectResponse(url=f"{frontend_base_url}{safe_next}")
 
 
 @app.get("/post-logout")
 def post_logout(next: str = "/login"):
-    safe_next = next if next.startswith("/") else "/login"
+    safe_next = _safe_frontend_path(next, "/login")
     return RedirectResponse(url=f"{frontend_base_url}{safe_next}")
 
 
@@ -345,4 +352,4 @@ async def profile(
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run(app, host="0.0.0.0", port=3000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -12,7 +12,9 @@ export default function CanvasPage() {
 
     async function fetchData(url: string) {
         try {
-          const response = await fetch(url);
+          const response = await fetch(url, {
+            credentials: 'include',
+          });
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -57,6 +59,7 @@ export default function CanvasPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: json,
     })
     .then(response => {
