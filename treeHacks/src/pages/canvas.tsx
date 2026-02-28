@@ -1,12 +1,69 @@
 import { useRef } from 'react'
-import { Tldraw, Editor } from 'tldraw'
+import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, useEditor, useValue } from 'tldraw'
 import 'tldraw/tldraw.css'
 import { CodeBlockUtil, CodeBlockTool } from '../shapes/CodeBlock'
 import { getApiBaseUrl, getLogoutUrl } from '../lib/auth'
 
-const customShapeUtils = [CodeBlockUtil]
+import { OnCanvasComponentPicker } from '../components/OnCanvasComponentPicker.tsx'
+import { WorkflowRegions } from '../components/WorkflowRegions.tsx'
+import { overrides, WorkflowToolbar } from '../components/WorkflowToolbar.tsx'
+import { ConnectionBindingUtil } from '../connection/ConnectionBindingUtil'
+import { ConnectionShapeUtil } from '../connection/ConnectionShapeUtil'
+import { keepConnectionsAtBottom } from '../connection/keepConnectionsAtBottom'
+import { disableTransparency } from '../disableTransparency.tsx'
+import { NodeShapeUtil } from '../nodes/NodeShapeUtil'
+import { PointingPort } from '../ports/PointingPort'
+
 const customTools = [CodeBlockTool]
 const API_BASE_URL = getApiBaseUrl()
+
+// Define custom shape utilities that extend tldraw's shape system
+const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil]
+// Define binding utilities that handle relationships between shapes
+const bindingUtils = [ConnectionBindingUtil]
+
+// Customize tldraw's UI components to add workflow-specific functionality
+const components: TLComponents = {
+	InFrontOfTheCanvas: () => (
+		<>
+			<OnCanvasComponentPicker />
+			<WorkflowRegions />
+		</>
+	),
+	Toolbar: () => (
+		<>
+			<WorkflowToolbar />
+			<div className="tlui-main-toolbar tlui-main-toolbar--horizontal">
+				<TldrawUiToolbar className="tlui-main-toolbar__tools" label="Actions">
+					<DefaultQuickActions />
+					<DefaultActionsMenu />
+				</TldrawUiToolbar>
+			</div>
+		</>
+	),
+
+	MenuPanel: () => null,
+	StylePanel: () => {
+		const editor = useEditor()
+		const shouldShowStylePanel = useValue(
+			'shouldShowStylePanel',
+			() => {
+				return (
+					!editor.isIn('select') ||
+					editor.getSelectedShapes().some((s) => s.type !== 'node' && s.type !== 'connection')
+				)
+			},
+			[editor]
+		)
+		if (!shouldShowStylePanel) return
+		return <DefaultStylePanel />
+	},
+}
+
+const options: Partial<TldrawOptions> = {
+	actionShortcutsLocation: 'menu',
+	maxPages: 1,
+}
 
 export default function CanvasPage() {
     const canvasIdRef = useRef<string | null>(null)
@@ -123,10 +180,37 @@ export default function CanvasPage() {
       const returnTo = '/login'
       window.location.href = getLogoutUrl(returnTo)
     }
-
-    return (
+  return (
     <div style={{ position: 'fixed', inset: 0 }}>
-        <Tldraw onMount={handleMount} shapeUtils={customShapeUtils} tools={customTools} />
+        <Tldraw
+            persistenceKey="workflow"
+            options={options}
+            overrides={overrides}
+            shapeUtils={shapeUtils}
+            tools={customTools}
+            bindingUtils={bindingUtils}
+            components={components}
+            onMount={(editor) => {
+                handleMount(editor);
+                ;(window as any).editor = editor
+                if (!editor.getCurrentPageShapes().some((s) => s.type === 'node')) {
+                    editor.createShape({ type: 'node', x: 200, y: 200 })
+                }
+
+                editor.user.updateUserPreferences({ isSnapMode: true })
+
+                // Add our custom pointing port tool to the select tool's state machine
+                // This allows users to create connections by pointing at ports
+                editor.getStateDescendant('select')!.addChild(PointingPort)
+
+                // Ensure connections always stay at the bottom of the shape stack
+                // This prevents them from covering other shapes
+                keepConnectionsAtBottom(editor)
+
+                // Disable transparency for workflow shapes
+                disableTransparency(editor, ['node', 'connection'])
+            }}
+        />
         <div className='absolute top-4 right-4 z-50'>
           <button onClick={signOut} className='bg-slate-900 text-white px-4 py-2 rounded shadow'>Sign out</button>
         </div>
@@ -135,5 +219,5 @@ export default function CanvasPage() {
           <button onClick={exportShapes} className='bg-white px-4 py-2 text-black rounded shadow'>Save</button>
         </div>
     </div>
-  )
+)
 }
