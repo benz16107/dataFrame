@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from sqlmodel import Field, Relationship, Session, SQLModel, create_engine, select
 from datetime import datetime, timezone
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, text
 from starlette.middleware.sessions import SessionMiddleware
 
 load_dotenv()
@@ -33,6 +33,7 @@ class Canvas(SQLModel, table=True):
         unique=True,
     )
     name: str
+    owner_sub: str = Field(index=True)
     shapes: list["Shape"] = Relationship(back_populates="canvas")
 
 class TLShape(BaseModel):
@@ -69,6 +70,23 @@ engine = create_engine(sqlite_url, connect_args=connect_args)
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
+
+
+def migrate_canvas_owner_sub_column() -> None:
+    with engine.begin() as connection:
+        table_info = connection.execute(text("PRAGMA table_info(canvas)"))
+        columns = {row[1] for row in table_info}
+
+        if "owner_sub" not in columns:
+            connection.execute(
+                text("ALTER TABLE canvas ADD COLUMN owner_sub TEXT NOT NULL DEFAULT ''")
+            )
+
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_canvas_owner_sub ON canvas(owner_sub)"
+            )
+        )
 
 
 def get_session():
@@ -110,6 +128,22 @@ auth_client = AuthClient(config)
 app.state.config = config
 app.state.auth_client = auth_client
 
+
+async def get_current_user_sub(
+    request: Request,
+    response: Response,
+    session: dict[str, Any] = Depends(auth_client.require_session),
+) -> str:
+    store_options = {"request": request, "response": response}
+    user = await auth_client.client.get_user(store_options=store_options)
+    sub = user.get("sub") if user else None
+    if not sub:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return sub
+
+
+CurrentUserSubDep = Annotated[str, Depends(get_current_user_sub)]
+
 register_auth_routes(router, config)
 app.include_router(router)
 
@@ -117,6 +151,25 @@ app.include_router(router)
 @app.on_event("startup")
 def on_startup():
     create_db_and_tables()
+    migrate_canvas_owner_sub_column()
+
+
+def get_owned_canvas_or_404(session: Session, canvas_id: str, owner_sub: str) -> Canvas:
+    canvas = session.get(Canvas, canvas_id)
+    if not canvas:
+        raise HTTPException(status_code=404, detail="Canvas not found")
+
+    if canvas.owner_sub == owner_sub:
+        return canvas
+
+    if canvas.owner_sub == "":
+        canvas.owner_sub = owner_sub
+        session.add(canvas)
+        session.commit()
+        session.refresh(canvas)
+        return canvas
+
+    raise HTTPException(status_code=404, detail="Canvas not found")
 
 # User CRUD
 
@@ -158,8 +211,12 @@ def delete_user(user_id: int, session: SessionDep):
 
 # Canvas CRUD
 @app.post("/canvas/", response_model=Canvas)
-def create_canvas(canvas_in: CanvasCreate, session: SessionDep) -> Canvas:
-    canvas = Canvas(name=canvas_in.name)
+def create_canvas(
+    canvas_in: CanvasCreate,
+    session: SessionDep,
+    current_user_sub: CurrentUserSubDep,
+) -> Canvas:
+    canvas = Canvas(name=canvas_in.name, owner_sub=current_user_sub)
     session.add(canvas)
     session.commit()
     session.refresh(canvas)
@@ -169,26 +226,35 @@ def create_canvas(canvas_in: CanvasCreate, session: SessionDep) -> Canvas:
 @app.get("/canvas/", response_model=list[Canvas])
 def read_canvases(
     session: SessionDep,
+    current_user_sub: CurrentUserSubDep,
     offset: int = 0,
     limit: Annotated[int, Query(le=100)] = 100,
 ) -> list[Canvas]:
-    canvases = session.exec(select(Canvas).offset(offset).limit(limit)).all()
+    canvases = session.exec(
+        select(Canvas)
+        .where(Canvas.owner_sub == current_user_sub)
+        .offset(offset)
+        .limit(limit)
+    ).all()
     return canvases
 
 
 @app.get("/canvas/{canvas_id}", response_model=Canvas)
-def read_canvas(canvas_id: str, session: SessionDep) -> Canvas:
-    canvas = session.get(Canvas, canvas_id)
-    if not canvas:
-        raise HTTPException(status_code=404, detail="Canvas not found")
-    return canvas
+def read_canvas(
+    canvas_id: str,
+    session: SessionDep,
+    current_user_sub: CurrentUserSubDep,
+) -> Canvas:
+    return get_owned_canvas_or_404(session, canvas_id, current_user_sub)
 
 
 @app.delete("/canvas/{canvas_id}")
-def delete_canvas(canvas_id: str, session: SessionDep):
-    canvas = session.get(Canvas, canvas_id)
-    if not canvas:
-        raise HTTPException(status_code=404, detail="Canvas not found")
+def delete_canvas(
+    canvas_id: str,
+    session: SessionDep,
+    current_user_sub: CurrentUserSubDep,
+):
+    canvas = get_owned_canvas_or_404(session, canvas_id, current_user_sub)
 
     shapes = session.exec(select(Shape).where(Shape.canvas_id == canvas_id)).all()
     for shape in shapes:
@@ -203,7 +269,12 @@ def delete_canvas(canvas_id: str, session: SessionDep):
 
 # Get shapes for a specific canvas
 @app.get("/canvas/{canvas_id}/shapes")
-def read_shapes(canvas_id: str, session: SessionDep) -> list[Shape]:
+def read_shapes(
+    canvas_id: str,
+    session: SessionDep,
+    current_user_sub: CurrentUserSubDep,
+) -> list[Shape]:
+    get_owned_canvas_or_404(session, canvas_id, current_user_sub)
     shapes = session.exec(select(Shape).where(Shape.canvas_id == canvas_id)).all()
 
     return shapes
@@ -211,7 +282,13 @@ def read_shapes(canvas_id: str, session: SessionDep) -> list[Shape]:
 
 # Saves all shapes via Save button - deletes all existing shapes and recreates them
 @app.post("/canvas/{canvas_id}/shapes")
-def batch_save_shape(canvas_id: str, shapes: list[TLShape], session: SessionDep):
+def batch_save_shape(
+    canvas_id: str,
+    shapes: list[TLShape],
+    session: SessionDep,
+    current_user_sub: CurrentUserSubDep,
+):
+    get_owned_canvas_or_404(session, canvas_id, current_user_sub)
     # Delete all existing shapes for this canvas
     existing = session.exec(select(Shape).where(Shape.canvas_id == canvas_id)).all()
     for shape in existing:
