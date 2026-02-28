@@ -4,10 +4,11 @@
 
 @custom-variant dark (&:is(.dark *));
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
 }
 .something{
   color: black;
@@ -91,8 +92,8 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: #2563eb;
+  --radius: 0.75rem;
+  --background: #f7f4ef;
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
@@ -166,4 +167,294 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+.dash-bg {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(250, 204, 21, 0.25), transparent 45%),
+    radial-gradient(circle at 85% 15%, rgba(34, 211, 238, 0.22), transparent 40%),
+    radial-gradient(circle at 70% 80%, rgba(251, 146, 60, 0.22), transparent 45%),
+    linear-gradient(120deg, #f7f4ef 0%, #fff7e7 45%, #f2f7f7 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.dash-glow {
+  position: absolute;
+  inset: -20% -10% auto -10%;
+  height: 320px;
+  background: linear-gradient(120deg, rgba(15, 118, 110, 0.25), rgba(249, 115, 22, 0.25));
+  filter: blur(60px);
+  pointer-events: none;
+}
+
+.dash-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2.5rem 6vw 1.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dash-brand {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.dash-mark {
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: #0f172a;
+  color: #f8fafc;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.dash-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.7rem;
+  color: rgba(15, 23, 42, 0.65);
+  margin: 0;
+}
+
+.dash-title {
+  font-size: clamp(2rem, 3.5vw, 3.4rem);
+  margin: 0.2rem 0 0;
+  font-weight: 700;
+}
+
+.dash-actions {
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.dash-btn {
+  border-radius: 999px;
+  padding: 0.7rem 1.4rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  transition: transform 150ms ease, box-shadow 150ms ease, background 150ms ease;
+}
+
+.dash-btn:hover {
+  transform: translateY(-1px);
+}
+
+.dash-btn-primary {
+  background: #0f172a;
+  color: #f8fafc;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2);
+}
+
+.dash-btn-outline {
+  border-color: rgba(15, 23, 42, 0.2);
+  color: #0f172a;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+.dash-btn-ghost {
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  background: transparent;
+}
+
+.dash-hero {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 2rem;
+  padding: 1rem 6vw 2.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dash-hero-title {
+  font-size: clamp(1.8rem, 2.7vw, 2.6rem);
+  margin: 0;
+  font-weight: 600;
+}
+
+.dash-hero-sub {
+  margin-top: 0.8rem;
+  max-width: 540px;
+  color: rgba(15, 23, 42, 0.7);
+  line-height: 1.6;
+}
+
+.dash-hero-cta {
+  margin-top: 1.6rem;
+  display: flex;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.dash-hero-card {
+  border-radius: 24px;
+  padding: 1.8rem;
+  background: rgba(255, 255, 255, 0.8);
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.12);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  backdrop-filter: blur(10px);
+}
+
+.dash-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.8rem;
+}
+
+.dash-card-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 0.65rem;
+  color: rgba(15, 23, 42, 0.6);
+  margin: 0;
+}
+
+.dash-chip {
+  border-radius: 999px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.7rem;
+  background: rgba(16, 185, 129, 0.18);
+  color: #065f46;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.dash-card-title {
+  font-size: 1.6rem;
+  margin: 0.2rem 0 0.4rem;
+}
+
+.dash-card-sub {
+  color: rgba(15, 23, 42, 0.6);
+  margin: 0 0 1.2rem;
+}
+
+.dash-card-rail {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.dash-rail-node {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #0f172a;
+  color: #f8fafc;
+  font-weight: 600;
+}
+
+.dash-section {
+  padding: 0 6vw 3rem;
+  position: relative;
+  z-index: 1;
+}
+
+.dash-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.5rem;
+}
+
+.dash-section-header h3 {
+  font-size: 1.4rem;
+  margin: 0;
+}
+
+.dash-filters {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.dash-pill {
+  border-radius: 999px;
+  border: 1px solid rgba(15, 23, 42, 0.15);
+  padding: 0.35rem 0.9rem;
+  background: rgba(255, 255, 255, 0.6);
+  font-weight: 500;
+}
+
+.dash-pill.is-active {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1.2rem;
+}
+
+.dash-card {
+  border-radius: 20px;
+  padding: 1.2rem 1.4rem 1.4rem;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.dash-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.dash-status {
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.7rem;
+  border: 1px solid transparent;
+  text-transform: capitalize;
+  font-weight: 600;
+}
+
+.dash-muted {
+  color: rgba(15, 23, 42, 0.55);
+  font-size: 0.75rem;
+}
+
+.dash-card-name {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.dash-tags {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.dash-tag {
+  background: rgba(15, 23, 42, 0.08);
+  color: rgba(15, 23, 42, 0.7);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  font-size: 0.7rem;
+}
+
+.dash-card-actions {
+  margin-top: auto;
+  display: flex;
+  gap: 0.6rem;
 }
