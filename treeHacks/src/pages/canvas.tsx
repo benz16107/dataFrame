@@ -9,10 +9,13 @@ const customTools = [CodeBlockTool]
 const API_BASE_URL = getApiBaseUrl()
 
 export default function CanvasPage() {
+    const canvasIdRef = useRef<string | null>(null)
 
     async function fetchData(url: string) {
         try {
-          const response = await fetch(url);
+          const response = await fetch(url, {
+            credentials: 'include',
+          });
 
           if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
@@ -26,20 +29,51 @@ export default function CanvasPage() {
         }
     }
 
+    async function ensureCanvasId() {
+      if (canvasIdRef.current) return canvasIdRef.current
+
+      const canvases = await fetchData(`${API_BASE_URL}/canvas/`)
+      if (Array.isArray(canvases) && canvases.length > 0 && canvases[0]?.id) {
+        canvasIdRef.current = canvases[0].id
+        return canvasIdRef.current
+      }
+
+      const createResponse = await fetch(`${API_BASE_URL}/canvas/`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: 'My Canvas' }),
+      })
+
+      if (!createResponse.ok) {
+        throw new Error(`Failed to create canvas: ${createResponse.status}`)
+      }
+
+      const createdCanvas = await createResponse.json()
+      canvasIdRef.current = createdCanvas.id
+      return canvasIdRef.current
+    }
+
     const editorRef = useRef<Editor | null>(null);
 
     const handleMount = (editor: Editor) => {
       editorRef.current = editor;
 
       // Load saved shapes from API
-      const apiUrl = `${API_BASE_URL}/canvas/8d7fdf9b-1ece-4782-bbc3-5b68d9af6722/shapes`;
-      fetchData(apiUrl).then(shapeData => {
+      ensureCanvasId().then(canvasId => {
+        const apiUrl = `${API_BASE_URL}/canvas/${canvasId}/shapes`
+        return fetchData(apiUrl)
+      }).then(shapeData => {
         if (shapeData && shapeData.length > 0) {
           // Extract the tldraw shape data from each record
           const shapes = shapeData.map((s: { data: object }) => s.data);
           editor.createShapes(shapes);
         }
-      });
+      }).catch(error => {
+        console.error('Error loading shapes:', error)
+      })
     };
 
     const exportShapes = () => {
@@ -51,13 +85,16 @@ export default function CanvasPage() {
       // Serialize to JSON
       const json = JSON.stringify(shapes, null, 2);
 
-    const apiUrl = `${API_BASE_URL}/canvas/8d7fdf9b-1ece-4782-bbc3-5b68d9af6722/shapes`;
-    fetch(apiUrl, {
+    ensureCanvasId().then(canvasId => {
+      const apiUrl = `${API_BASE_URL}/canvas/${canvasId}/shapes`;
+      return fetch(apiUrl, {
         method: 'POST',
+        credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
         },
         body: json,
+      })
     })
     .then(response => {
         if (!response.ok) {
