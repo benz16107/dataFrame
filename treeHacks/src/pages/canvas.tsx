@@ -1,6 +1,10 @@
 import { useRef } from 'react'
 import { Tldraw, Editor } from 'tldraw'
 import 'tldraw/tldraw.css'
+import { CodeBlockUtil, CodeBlockTool } from '../shapes/CodeBlock'
+
+const customShapeUtils = [CodeBlockUtil]
+const customTools = [CodeBlockTool]
 
 export default function CanvasPage() {
 
@@ -72,10 +76,17 @@ export default function CanvasPage() {
 
     // on save, post TLShapes to API
 
+    const selectCodeBlockTool = () => {
+      editorRef.current?.setCurrentTool('code-block')
+    }
+
     return (
     <div style={{ position: 'fixed', inset: 0 }}>
-        <Tldraw onMount={handleMount}/>
-        <button onClick={exportShapes} className='absolute top-4 right-4 z-50 bg-white px-4 py-2 rounded shadow'>Export Shapes</button>
+        <Tldraw onMount={handleMount} shapeUtils={customShapeUtils} tools={customTools} />
+        <div className='absolute bottom-4 right-4 z-50 flex gap-2'>
+          <button onClick={selectCodeBlockTool} className='bg-purple-500 text-white px-4 py-2 rounded shadow'>Code Block</button>
+          <button onClick={exportShapes} className='bg-white px-4 py-2 text-white rounded shadow'>Save</button>
+        </div>
     </div>
   )
 }
