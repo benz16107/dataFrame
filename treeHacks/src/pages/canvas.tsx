@@ -37,13 +37,13 @@ export default function CanvasPage() {
     async function ensureCanvasId() {
       if (canvasIdRef.current) return canvasIdRef.current
 
-      const canvases = await fetchData(`${API_BASE_URL}/canvas/`)
+      const canvases = await fetchData(`${API_BASE}/canvas/`)
       if (Array.isArray(canvases) && canvases.length > 0 && canvases[0]?.id) {
         canvasIdRef.current = canvases[0].id
         return canvasIdRef.current
       }
 
-      const createResponse = await fetch(`${API_BASE_URL}/canvas/`, {
+      const createResponse = await fetch(`${API_BASE}/canvas/`, {
         method: 'POST',
         credentials: 'include',
         headers: {
@@ -130,7 +130,7 @@ export default function CanvasPage() {
     const json = JSON.stringify(shapes, null, 2);
 
     ensureCanvasId().then(canvasId => {
-      const apiUrl = `${API_BASE_URL}/canvas/${canvasId}/shapes`;
+      const apiUrl = `${API_BASE}/canvas/${canvasId}/shapes`;
       return fetch(apiUrl, {
         method: 'POST',
         credentials: 'include',
