@@ -177,6 +177,7 @@
     linear-gradient(120deg, #f7f4ef 0%, #fff7e7 45%, #f2f7f7 100%);
   position: relative;
   overflow: hidden;
+  padding-bottom: clamp(4rem, 9vh, 7rem);
 }
 
 .dash-glow {
