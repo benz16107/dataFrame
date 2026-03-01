@@ -109,6 +109,7 @@ export function WorkflowToolbar() {
 			</TldrawUiMenuGroup>
 
 			<TldrawUiMenuGroup id="nodes">
+				<ToolbarItem tool="node-code" />
 				<MathematicalToolbarItem />
 				<ToolbarItem tool="node-slider" />
 				<ToolbarItem tool="node-conditional" />

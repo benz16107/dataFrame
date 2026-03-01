@@ -19,9 +19,11 @@ import {
 } from './types/shared'
 import { SliderNodeDefinition } from './types/SliderNode'
 import { SubtractNodeDefinition } from './types/SubtractNode'
+import { CodeNodeDefinition } from './types/CodeNode'
 
 /** All our node types */
 export const NodeDefinitions = {
+	code: CodeNodeDefinition,
 	add: AddNodeDefinition,
 	subtract: SubtractNodeDefinition,
 	multiply: MultiplyNodeDefinition,
