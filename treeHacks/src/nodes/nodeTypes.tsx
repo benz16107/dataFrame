@@ -20,10 +20,12 @@ import {
 import { SliderNodeDefinition } from './types/SliderNode'
 import { SubtractNodeDefinition } from './types/SubtractNode'
 import { CodeNodeDefinition } from './types/CodeNode'
+import { OutputNodeDefinition } from './types/OutputNode'
 
 /** All our node types */
 export const NodeDefinitions = {
 	code: CodeNodeDefinition,
+	output: OutputNodeDefinition,
 	add: AddNodeDefinition,
 	subtract: SubtractNodeDefinition,
 	multiply: MultiplyNodeDefinition,
