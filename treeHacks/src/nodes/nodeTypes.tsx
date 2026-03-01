@@ -14,6 +14,7 @@ import { MultiplyNodeDefinition } from './types/MultiplyNode'
 import {
 	ExecutionResult,
 	InfoValues,
+	InputValues,
 	NodeDefinition,
 	NodeDefinitionConstructor,
 } from './types/shared'
@@ -22,12 +23,18 @@ import { SubtractNodeDefinition } from './types/SubtractNode'
 import { CodeNodeDefinition } from './types/CodeNode'
 import { OutputNodeDefinition } from './types/OutputNode'
 import { GraphOutputNodeDefinition } from './types/GraphOutputNode'
+import { GeminiNodeDefinition } from './types/GeminiNode'
+import { TextOutputNodeDefinition } from './types/TextOutputNode'
+import { NumberOutputNodeDefinition } from './types/NumberOutputNode'
 
 /** All our node types */
 export const NodeDefinitions = {
 	code: CodeNodeDefinition,
 	output: OutputNodeDefinition,
 	graphOutput: GraphOutputNodeDefinition,
+	gemini: GeminiNodeDefinition,
+	textOutput: TextOutputNodeDefinition,
+	numberOutput: NumberOutputNodeDefinition,
 	add: AddNodeDefinition,
 	subtract: SubtractNodeDefinition,
 	multiply: MultiplyNodeDefinition,
@@ -77,12 +84,13 @@ export function getNodeBodyHeightPx(editor: Editor, shape: NodeShape): number {
 }
 
 export function getNodeHeightPx(editor: Editor, shape: NodeShape): number {
-	return (
+	const intrinsicHeight =
 		NODE_HEADER_HEIGHT_PX +
 		NODE_ROW_HEADER_GAP_PX +
 		getNodeBodyHeightPx(editor, shape) +
 		NODE_ROW_BOTTOM_PADDING_PX
-	)
+
+	return Math.max(intrinsicHeight, shape.props.h ?? 0)
 }
 
 export function getNodeTypePorts(editor: Editor, shape: NodeShape): Record<string, ShapePort> {
@@ -92,7 +100,7 @@ export function getNodeTypePorts(editor: Editor, shape: NodeShape): Record<strin
 export async function executeNode(
 	editor: Editor,
 	shape: NodeShape,
-	inputs: Record<string, number>
+	inputs: InputValues
 ): Promise<ExecutionResult> {
 	return await getNodeDefinition(editor, shape.props.node).execute(shape, shape.props.node, inputs)
 }

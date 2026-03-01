@@ -1,33 +1,17 @@
 import {
-	AssetToolbarItem,
-	CheckBoxToolbarItem,
-	CloudToolbarItem,
 	createShapeId,
 	DefaultToolbar,
-	DiamondToolbarItem,
 	DrawToolbarItem,
 	Editor,
-	EllipseToolbarItem,
 	HandToolbarItem,
-	HeartToolbarItem,
-	HexagonToolbarItem,
-	HighlightToolbarItem,
-	LaserToolbarItem,
 	NoteToolbarItem,
 	onDragFromToolbarToCreateShape,
-	OvalToolbarItem,
-	RectangleToolbarItem,
-	RhombusToolbarItem,
 	SelectToolbarItem,
-	StarToolbarItem,
-	TextToolbarItem,
 	TldrawUiMenuGroup,
 	TLShapeId,
 	TLUiOverrides,
 	ToolbarItem,
-	TriangleToolbarItem,
 	Vec,
-	XBoxToolbarItem,
 } from 'tldraw'
 import { NodeShape } from '../nodes/NodeShapeUtil'
 import { getNodeDefinitions, NodeType } from '../nodes/nodeTypes'
@@ -94,7 +78,7 @@ export const overrides: TLUiOverrides = {
 
 export function WorkflowToolbar() {
 	return (
-		<DefaultToolbar orientation="vertical" maxItems={8}>
+		<DefaultToolbar orientation="vertical" maxItems={12}>
 			<TldrawUiMenuGroup id="selection">
 				<SelectToolbarItem />
 				<HandToolbarItem />
@@ -104,32 +88,14 @@ export function WorkflowToolbar() {
 
 			<TldrawUiMenuGroup id="nodes">
 				<ToolbarItem tool="node-code" />
+				<ToolbarItem tool="node-textOutput" />
+				<ToolbarItem tool="node-numberOutput" />
 				<ToolbarItem tool="node-output" />
 				<ToolbarItem tool="node-graphOutput" />
+				<ToolbarItem tool="node-gemini" />
 				<ToolbarItem tool="node-slider" />
 			</TldrawUiMenuGroup>
 
-			<TldrawUiMenuGroup id="shapes">
-				<RectangleToolbarItem />
-				<EllipseToolbarItem />
-				<TriangleToolbarItem />
-				<DiamondToolbarItem />
-
-				<HexagonToolbarItem />
-				<OvalToolbarItem />
-				<RhombusToolbarItem />
-				<StarToolbarItem />
-
-				<CloudToolbarItem />
-				<HeartToolbarItem />
-				<XBoxToolbarItem />
-				<CheckBoxToolbarItem />
-
-				<TextToolbarItem />
-				<AssetToolbarItem />
-				<HighlightToolbarItem />
-				<LaserToolbarItem />
-			</TldrawUiMenuGroup>
 		</DefaultToolbar>
 	)
 }

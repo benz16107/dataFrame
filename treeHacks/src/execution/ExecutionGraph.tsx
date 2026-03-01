@@ -6,7 +6,7 @@ import {
 	NodePortConnection,
 } from '../nodes/nodePorts'
 import { executeNode } from '../nodes/nodeTypes'
-import { ExecutionResult, STOP_EXECUTION } from '../nodes/types/shared'
+import { ExecutionResult, InputValues, STOP_EXECUTION } from '../nodes/types/shared'
 
 interface PendingExecutionGraphNode {
 	readonly state: 'waiting' | 'executing'
@@ -94,7 +94,7 @@ export class ExecutionGraph {
 		const node = this.nodesById.get(nodeId)
 		if (!node || node.state !== 'waiting') return
 
-		const inputs: Record<string, number> = {}
+		const inputs: InputValues = {}
 
 		// Check all input connections (end ports) to see if dependencies are ready
 		for (const connection of node.connections) {

@@ -11,6 +11,7 @@ import { Port, ShapePort } from '../../ports/Port'
 import { sleep } from '../../utils/sleep'
 import { NodeShape } from '../NodeShapeUtil'
 import {
+	asNumber,
 	areAnyInputsOutOfDate,
 	ExecutionResult,
 	InfoValues,
@@ -96,7 +97,8 @@ export class ConditionalNodeDefinition extends NodeDefinition<ConditionalNode> {
 		return NODE_ROW_HEIGHT_PX * 5 - NODE_ROW_BOTTOM_PADDING_PX
 	}
 	// We need a port for each input and output.
-	getPorts(): Record<string, ShapePort> {
+	getPorts(shape: NodeShape): Record<string, ShapePort> {
+		const width = Math.max(NODE_WIDTH_PX, shape.props.w || NODE_WIDTH_PX)
 		return {
 			lhs: {
 				id: 'lhs',
@@ -112,13 +114,13 @@ export class ConditionalNodeDefinition extends NodeDefinition<ConditionalNode> {
 			},
 			outputTrue: {
 				id: 'outputTrue',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX + NODE_ROW_HEADER_GAP_PX + NODE_ROW_HEIGHT_PX * 3.5,
 				terminal: 'start',
 			},
 			outputFalse: {
 				id: 'outputFalse',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX + NODE_ROW_HEADER_GAP_PX + NODE_ROW_HEIGHT_PX * 4.5,
 				terminal: 'start',
 			},
@@ -133,8 +135,8 @@ export class ConditionalNodeDefinition extends NodeDefinition<ConditionalNode> {
 	): Promise<ExecutionResult> {
 		await sleep(1000)
 
-		const lhs = inputs.lhs ?? node.lhs
-		const rhs = inputs.rhs ?? node.rhs
+		const lhs = asNumber(inputs.lhs, node.lhs)
+		const rhs = asNumber(inputs.rhs, node.rhs)
 
 		if (operators[node.operator].evaluate(lhs, rhs)) {
 			updateNode<ConditionalNode>(this.editor, shape, (node) => ({
@@ -152,8 +154,8 @@ export class ConditionalNodeDefinition extends NodeDefinition<ConditionalNode> {
 	}
 	getOutputInfo(shape: NodeShape, node: ConditionalNode, inputs: InfoValues): InfoValues {
 		const isOutOfDate = areAnyInputsOutOfDate(inputs) || shape.props.isOutOfDate
-		const lhs = inputs.lhs?.value ?? node.lhs
-		const rhs = inputs.rhs?.value ?? node.rhs
+		const lhs = asNumber(inputs.lhs?.value, node.lhs)
+		const rhs = asNumber(inputs.rhs?.value, node.rhs)
 
 		return {
 			outputTrue:

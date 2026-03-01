@@ -38,10 +38,11 @@ export class SliderNodeDefinition extends NodeDefinition<SliderNode> {
 		return NODE_ROW_HEIGHT_PX
 	}
 	getPorts(_shape: NodeShape, _node: SliderNode): Record<string, ShapePort> {
+		const width = Math.max(NODE_WIDTH_PX, _shape.props.w || NODE_WIDTH_PX)
 		return {
 			output: {
 				id: 'output',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX / 2,
 				terminal: 'start',
 			},

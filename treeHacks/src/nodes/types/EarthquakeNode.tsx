@@ -60,11 +60,12 @@ export class EarthquakeNodeDefinition extends NodeDefinition<EarthquakeNode> {
 		return NODE_ROW_HEIGHT_PX * 3 // Three rows for magnitude, location, datetime
 	}
 
-	getPorts(_shape: NodeShape, _node: EarthquakeNode): Record<string, ShapePort> {
+	getPorts(shape: NodeShape, _node: EarthquakeNode): Record<string, ShapePort> {
+		const width = Math.max(NODE_WIDTH_PX, shape.props.w || NODE_WIDTH_PX)
 		return {
 			output: {
 				id: 'output',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX / 2,
 				terminal: 'start',
 			},

@@ -1,10 +1,7 @@
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
-// 1. ADDED createShapeId to the tldraw imports
-import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, getSnapshot, useEditor, useValue, createShapeId } from "tldraw";
+import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, getSnapshot, useEditor, useValue } from "tldraw";
 import "tldraw/tldraw.css";
 import { CodeBlockUtil, CodeBlockTool } from "../shapes/CodeBlock";
-// 2. ADDED BOT IMPORTS
-import { BotShapeUtil, BotShapeTool } from '../shapes/bot'
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   clearPendingCanvasImport,
@@ -30,9 +27,8 @@ import { disableTransparency } from '../disableTransparency.tsx'
 import { NodeShapeUtil } from '../nodes/NodeShapeUtil'
 import { PointingPort } from '../ports/PointingPort'
 
-// 3. ADDED BOT TO ARRAYS
-const customTools = [CodeBlockTool, BotShapeTool]
-const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil, BotShapeUtil]
+const customTools = [CodeBlockTool]
+const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil]
 const bindingUtils = [ConnectionBindingUtil]
 
 // Customize tldraw's UI components to add workflow-specific functionality
@@ -80,6 +76,75 @@ const components: TLComponents = {
 const options: Partial<TldrawOptions> = {
   actionShortcutsLocation: 'menu',
   maxPages: 1,
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function sanitizeLegacyBotShapesInArray(shapes: unknown[]): unknown[] {
+  return shapes.filter((shape) => !(isRecord(shape) && shape.type === 'bot-shape'))
+}
+
+function sanitizeLegacyBotShapesInSnapshot(snapshot: unknown): unknown {
+  if (Array.isArray(snapshot)) {
+    return sanitizeLegacyBotShapesInArray(snapshot)
+  }
+
+  if (!isRecord(snapshot)) return snapshot
+
+  const next = { ...snapshot }
+
+  if (Array.isArray(next.shapes)) {
+    next.shapes = sanitizeLegacyBotShapesInArray(next.shapes)
+  }
+
+  if (isRecord(next.store)) {
+    const sanitizedStore: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(next.store)) {
+      if (
+        isRecord(value) &&
+        value.typeName === 'shape' &&
+        value.type === 'bot-shape'
+      ) {
+        continue
+      }
+      sanitizedStore[key] = value
+    }
+    next.store = sanitizedStore
+  }
+
+  if (isRecord(next.document) && isRecord(next.document.store)) {
+    const sanitizedDocStore: Record<string, unknown> = {}
+    for (const [key, value] of Object.entries(next.document.store)) {
+      if (
+        isRecord(value) &&
+        value.typeName === 'shape' &&
+        value.type === 'bot-shape'
+      ) {
+        continue
+      }
+      sanitizedDocStore[key] = value
+    }
+    next.document = {
+      ...next.document,
+      store: sanitizedDocStore,
+    }
+  }
+
+  return next
+}
+
+function extractSnapshotFromStoredShapes(shapeData: Array<{ data: unknown }>): unknown | null {
+  if (!Array.isArray(shapeData) || shapeData.length === 0) return null
+
+  const snapshotEntry = shapeData.find((row) => {
+    if (!isRecord(row?.data)) return false
+    return row.data.type === '__tldraw_snapshot__' && 'snapshot' in row.data
+  })
+
+  if (!snapshotEntry || !isRecord(snapshotEntry.data)) return null
+  return snapshotEntry.data.snapshot
 }
 
 const backgroundOptions: Array<{ id: CanvasBackgroundPreset; label: string }> = [
@@ -208,7 +273,8 @@ export default function CanvasPage() {
 
     if (pendingSnapshot && editorRef.current) {
       try {
-        editorRef.current.loadSnapshot(pendingSnapshot as any)
+        const sanitizedSnapshot = sanitizeLegacyBotShapesInSnapshot(pendingSnapshot)
+        editorRef.current.loadSnapshot(sanitizedSnapshot as any)
         const importedShapes = editorRef.current.getCurrentPageShapes()
         if (importedShapes.length === 0) {
           throw new Error('Imported snapshot loaded but contains no page shapes')
@@ -233,12 +299,23 @@ export default function CanvasPage() {
       }
 
       if (shapeData && shapeData.length > 0) {
-        const shapes = shapeData.map((s: { data: object }) => s.data);
+        const snapshotFromStorage = extractSnapshotFromStoredShapes(shapeData as Array<{ data: unknown }> )
+
+        if (snapshotFromStorage) {
+          const sanitizedSnapshot = sanitizeLegacyBotShapesInSnapshot(snapshotFromStorage)
+          editorRef.current.loadSnapshot(sanitizedSnapshot as any)
+          lastSavedShapesRef.current = JSON.stringify(shapeData, null, 2)
+          void updateCanvasPreview(id)
+          return
+        }
+
+        const shapes = shapeData
+          .map((s: { data: object }) => s.data)
+          .filter((shape: unknown) => !(isRecord(shape) && shape.type === 'bot-shape'));
         editorRef.current.createShapes(shapes);
         lastSavedShapesRef.current = JSON.stringify(shapes, null, 2)
         void updateCanvasPreview(id)
       } else {
-        editorRef.current.createShape({ type: 'node', x: 200, y: 200 });
         lastSavedShapesRef.current = null
         void updateCanvasPreview(id)
       }
@@ -300,8 +377,14 @@ export default function CanvasPage() {
   const persistShapes = useCallback(async (canvasIdToSave: string, showFeedback: boolean) => {
     if (!editorRef.current || isSavingRef.current) return;
 
-    const shapes = editorRef.current.getCurrentPageShapes();
-    const json = JSON.stringify(shapes, null, 2);
+    const snapshotPayload = [
+      {
+        id: `snapshot-${canvasIdToSave}`,
+        type: '__tldraw_snapshot__',
+        snapshot: getSnapshot(editorRef.current.store),
+      },
+    ]
+    const json = JSON.stringify(snapshotPayload, null, 2);
 
     if (!showFeedback && lastSavedShapesRef.current === json) {
       return;
@@ -412,7 +495,8 @@ export default function CanvasPage() {
 
       const { snapshot: snapshotToLoad, backgroundPreset: importedBackground } = parseCanvasImportPayload(parsed)
 
-      editorRef.current.loadSnapshot(snapshotToLoad as any)
+      const sanitizedSnapshot = sanitizeLegacyBotShapesInSnapshot(snapshotToLoad)
+      editorRef.current.loadSnapshot(sanitizedSnapshot as any)
 
       if (importedBackground) {
         setBackgroundPreset(importedBackground)
@@ -503,7 +587,6 @@ export default function CanvasPage() {
     <div className="canvas-page" data-bg={backgroundPreset} ref={canvasPageRef}>
         <Tldraw
           key={activeCanvasId}
-          persistenceKey={`workflow-${activeCanvasId}`}
             options={options}
             overrides={overrides}
             shapeUtils={shapeUtils}
@@ -562,25 +645,6 @@ export default function CanvasPage() {
         >
           Clear Canvas
         </button>
-
-        {/* 4. THE MAGIC INSTANT-SPAWN BOT BUTTON */}
-        <button 
-          onClick={() => {
-            if (editorRef.current) {
-              editorRef.current.createShapes([{
-                id: createShapeId(),
-                type: 'bot-shape',
-                x: window.innerWidth / 2 - 175,
-                y: window.innerHeight / 2 - 225,
-              }]);
-              editorRef.current.setCurrentTool('select');
-            }
-          }} 
-          className="dash-btn dash-btn-outline"
-        >
-          Add Bot
-        </button>
-
         <button
           onClick={() => setIsOptionsOpen((open) => !open)}
           className="dash-btn dash-btn-outline"

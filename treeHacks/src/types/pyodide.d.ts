@@ -12,7 +12,8 @@ declare module '@/pyodide' {
     getGlobal(name: string): Promise<unknown>
     runWithIO(
       code: string,
-      inputs: Record<string, unknown>
-    ): Promise<unknown>
+      inputs: Record<string, unknown>,
+      outputNames?: string[]
+    ): Promise<Record<string, unknown>>
   }
 }

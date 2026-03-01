@@ -9,6 +9,7 @@ import { Port, ShapePort } from '../../ports/Port'
 import { getNodeInputPortValues } from '../nodePorts'
 import { NodeShape } from '../NodeShapeUtil'
 import {
+	asNumber,
 	ExecutionResult,
 	InfoValues,
 	InputValues,
@@ -21,13 +22,19 @@ import {
 const DEFAULT_MAX_POINTS = 50
 const MIN_POINTS_FOR_SPARKLINE = 2
 
+const GraphPoint = T.object({
+	x: T.number,
+	y: T.number,
+})
+type GraphPoint = T.TypeOf<typeof GraphPoint>
+
 export type GraphOutputNode = T.TypeOf<typeof GraphOutputNode>
 export const GraphOutputNode = T.object({
 	type: T.literal('graphOutput'),
 	label: T.string,
 	maxPoints: T.number,
-	history: T.arrayOf(T.number),
-	lastValue: T.number.nullable(),
+	history: T.arrayOf(GraphPoint),
+	lastPoint: T.nullable(GraphPoint),
 })
 
 export class GraphOutputNodeDefinition extends NodeDefinition<GraphOutputNode> {
@@ -43,29 +50,60 @@ export class GraphOutputNodeDefinition extends NodeDefinition<GraphOutputNode> {
 			label: 'Trend',
 			maxPoints: DEFAULT_MAX_POINTS,
 			history: [],
-			lastValue: null,
+			lastPoint: null,
 		}
 	}
 
 	getBodyHeightPx(_shape: NodeShape, _node: GraphOutputNode) {
-		return NODE_ROW_HEIGHT_PX * 4
+		return NODE_ROW_HEIGHT_PX * 5
 	}
 
 	getPorts(_shape: NodeShape, _node: GraphOutputNode): Record<string, ShapePort> {
 		return {
-			input: {
-				id: 'input',
+			x: {
+				id: 'x',
 				x: 0,
 				y: NODE_HEADER_HEIGHT_PX + NODE_ROW_HEADER_GAP_PX + NODE_ROW_HEIGHT_PX / 2,
+				terminal: 'end',
+			},
+			y: {
+				id: 'y',
+				x: 0,
+				y: NODE_HEADER_HEIGHT_PX + NODE_ROW_HEADER_GAP_PX + NODE_ROW_HEIGHT_PX * 1.5,
 				terminal: 'end',
 			},
 		}
 	}
 
 	async execute(shape: NodeShape, node: GraphOutputNode, inputs: InputValues): Promise<ExecutionResult> {
-		const inputValue = inputs['input'] ?? node.lastValue ?? 0
+		let history = node.history
 		const maxPoints = Math.max(5, Math.floor(node.maxPoints || DEFAULT_MAX_POINTS))
-		const history = [...node.history, inputValue].slice(-maxPoints)
+
+		const xInput = inputs['x']
+		const yInput = inputs['y']
+
+		if (Array.isArray(xInput) && Array.isArray(yInput) && xInput.length === yInput.length) {
+			const points = xInput
+				.map((xValue, index) => {
+					const x = Number(xValue)
+					const y = Number(yInput[index])
+					if (!Number.isFinite(x) || !Number.isFinite(y)) return null
+					return { x, y }
+				})
+				.filter((point): point is GraphPoint => point !== null)
+
+			if (points.length > 0) {
+				history = points.slice(-maxPoints)
+			}
+		} else {
+			const nextPoint = {
+				x: asNumber(xInput, node.lastPoint?.x ?? node.history.length),
+				y: asNumber(yInput, node.lastPoint?.y ?? 0),
+			}
+			history = [...node.history, nextPoint].slice(-maxPoints)
+		}
+
+		const lastPoint = history.length > 0 ? history[history.length - 1] : null
 
 		this.editor.updateShape({
 			id: shape.id,
@@ -75,7 +113,7 @@ export class GraphOutputNodeDefinition extends NodeDefinition<GraphOutputNode> {
 					...node,
 					maxPoints,
 					history,
-					lastValue: inputValue,
+					lastPoint,
 				},
 				isOutOfDate: false,
 			},
@@ -94,31 +132,46 @@ export class GraphOutputNodeDefinition extends NodeDefinition<GraphOutputNode> {
 export function GraphOutputNodeComponent({ shape, node }: NodeComponentProps<GraphOutputNode>) {
 	const editor = useEditor()
 
-	const connectedInputValue = useValue(
-		'graph input value',
+	const connectedInputValues = useValue(
+		'graph input values',
 		() => {
 			const portValues = getNodeInputPortValues(editor, shape.id)
-			const input = portValues['input']
-			if (!input) return null
-			if (input.value === STOP_EXECUTION) return null
-			return input.value
+			const xValue = portValues['x']
+			const yValue = portValues['y']
+
+			const x = !xValue || xValue.value === STOP_EXECUTION ? null : asNumber(xValue.value, NaN)
+			const y = !yValue || yValue.value === STOP_EXECUTION ? null : asNumber(yValue.value, NaN)
+
+			return {
+				x: Number.isFinite(x) ? x : null,
+				y: Number.isFinite(y) ? y : null,
+			}
 		},
 		[editor, shape.id]
 	)
 
-	const currentValue = connectedInputValue ?? node.lastValue
+	const currentPoint =
+		connectedInputValues?.x !== null && connectedInputValues?.y !== null
+			? { x: connectedInputValues.x, y: connectedInputValues.y }
+			: node.lastPoint
 	const data = node.history
 	const polyline = getSparklinePolyline(data)
 
 	return (
 		<div className="GraphOutputNode">
-			<NodeRow className="GraphOutputNode-input-row">
-				<Port shapeId={shape.id} portId="input" />
-				<span className="GraphOutputNode-label">{node.label}</span>
-				<span className="GraphOutputNode-current">
-					{currentValue === null ? '—' : formatValue(currentValue)}
-				</span>
-			</NodeRow>
+			<div className="GraphOutputNode-inputs">
+				<NodeRow className="GraphOutputNode-input-row">
+					<Port shapeId={shape.id} portId="x" />
+					<span className="GraphOutputNode-label">x</span>
+				</NodeRow>
+				<NodeRow className="GraphOutputNode-input-row">
+					<Port shapeId={shape.id} portId="y" />
+					<span className="GraphOutputNode-label">y</span>
+					<span className="GraphOutputNode-current">
+						{currentPoint ? `(${formatValue(currentPoint.x)}, ${formatValue(currentPoint.y)})` : '—'}
+					</span>
+				</NodeRow>
+			</div>
 			<div className="GraphOutputNode-chart" title="Recent values">
 				{polyline ? (
 					<svg viewBox="0 0 220 92" preserveAspectRatio="none" className="GraphOutputNode-svg">
@@ -132,19 +185,27 @@ export function GraphOutputNodeComponent({ shape, node }: NodeComponentProps<Gra
 	)
 }
 
-function getSparklinePolyline(values: number[]): string | null {
-	if (values.length < MIN_POINTS_FOR_SPARKLINE) return null
+function getSparklinePolyline(points: GraphPoint[]): string | null {
+	if (points.length < MIN_POINTS_FOR_SPARKLINE) return null
 
 	const width = 220
 	const height = 92
-	const min = Math.min(...values)
-	const max = Math.max(...values)
-	const range = max - min || 1
+	const xs = points.map((point) => point.x)
+	const ys = points.map((point) => point.y)
+	const minX = Math.min(...xs)
+	const maxX = Math.max(...xs)
+	const minY = Math.min(...ys)
+	const maxY = Math.max(...ys)
+	const rangeX = maxX - minX
+	const rangeY = maxY - minY || 1
 
-	return values
-		.map((value, index) => {
-			const x = (index / (values.length - 1)) * width
-			const y = height - ((value - min) / range) * height
+	return points
+		.map((point, index) => {
+			const x =
+				rangeX === 0
+					? (index / Math.max(1, points.length - 1)) * width
+					: ((point.x - minX) / rangeX) * width
+			const y = height - ((point.y - minY) / rangeY) * height
 			return `${x.toFixed(2)},${y.toFixed(2)}`
 		})
 		.join(' ')

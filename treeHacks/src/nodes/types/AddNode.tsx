@@ -12,6 +12,7 @@ import { sleep } from '../../utils/sleep'
 import { getNodePortConnections } from '../nodePorts'
 import { NodeShape } from '../NodeShapeUtil'
 import {
+	asNumber,
 	areAnyInputsOutOfDate,
 	ExecutionResult,
 	InfoValues,
@@ -53,12 +54,13 @@ export class AddNodeDefinition extends NodeDefinition<AddNode> {
 	getBodyHeightPx(_shape: NodeShape, node: AddNode) {
 		return NODE_ROW_HEIGHT_PX * indexListLength(node.items)
 	}
-	getPorts(_shape: NodeShape, node: AddNode): Record<string, ShapePort> {
+	getPorts(shape: NodeShape, node: AddNode): Record<string, ShapePort> {
+		const width = Math.max(NODE_WIDTH_PX, shape.props.w || NODE_WIDTH_PX)
 		return {
 			// The add node has a single output port...
 			output: {
 				id: 'output',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX / 2,
 				terminal: 'start',
 			},
@@ -87,7 +89,7 @@ export class AddNodeDefinition extends NodeDefinition<AddNode> {
 		await sleep(1000)
 
 		const result = Object.entries(node.items).reduce((acc, [idx, value]) => {
-			const currentValue = inputs[`item_${idx}`] ?? value
+			const currentValue = asNumber(inputs[`item_${idx}`], value)
 			return acc + currentValue
 		}, 0)
 		updateNode<AddNode>(this.editor, shape, (node) => ({

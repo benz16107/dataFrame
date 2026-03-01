@@ -1,6 +1,7 @@
 import classNames from 'classnames'
 import {
 	Circle2d,
+	Editor,
 	Group2d,
 	HTMLContainer,
 	RecordProps,
@@ -54,11 +55,11 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	override canEdit() {
 		return false
 	}
-	override canResize(shape: NodeShape) {
-		return shape.props.node.type === 'code'
+	override canResize() {
+		return true
 	}
-	override hideResizeHandles(shape: NodeShape) {
-		return !this.canResize(shape)
+	override hideResizeHandles(_shape: NodeShape) {
+		return !this.canResize()
 	}
 	override hideRotateHandle() {
 		return true
@@ -81,10 +82,7 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	// Define the geometry of our node shape including ports
 	getGeometry(shape: NodeShape) {
 		const ports = getNodePorts(this.editor, shape)
-		const width =
-			shape.props.node.type === 'code'
-				? Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
-				: NODE_WIDTH_PX
+		const width = getShapeWidth(shape)
 
 		const portGeometries = Object.values(ports).map(
 			(port) =>
@@ -111,15 +109,14 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	}
 
 	override onResize(shape: any, info: TLResizeInfo<any>) {
-		if (shape.props.node?.type !== 'code') return shape
-
 		const resized = resizeBox(shape, info) as NodeShape
+		const minHeight = shape.props.node?.type === 'code' ? 260 : getNodeMinHeight(this.editor, shape)
 		return {
 			...resized,
 			props: {
 				...resized.props,
 				w: Math.max(NODE_WIDTH_PX, resized.props.w),
-				h: Math.max(260, resized.props.h),
+				h: Math.max(minHeight, resized.props.h),
 			},
 		}
 	}
@@ -138,10 +135,7 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 function NodeShapeIndicator({ shape, ports }: { shape: NodeShape; ports: ShapePort[] }) {
 	const id = useUniqueSafeId()
 	const editor = useEditor()
-	const width =
-		shape.props.node.type === 'code'
-			? Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
-			: NODE_WIDTH_PX
+	const width = getShapeWidth(shape)
 
 	return (
 		<>
@@ -182,6 +176,29 @@ function NodeShapeIndicator({ shape, ports }: { shape: NodeShape; ports: ShapePo
 function NodeShape({ shape }: { shape: NodeShape }) {
 	const editor = useEditor()
 
+	const handleSelectablePointerCapture = (event: React.PointerEvent) => {
+		if (!isSelectableTextTarget(event.target)) return
+		editor.markEventAsHandled(event)
+		event.stopPropagation()
+	}
+
+	const handleSelectableMouseCapture = (event: React.MouseEvent) => {
+		if (!isSelectableTextTarget(event.target)) return
+		editor.markEventAsHandled(event)
+		event.stopPropagation()
+	}
+
+	const handleSelectableClickCapture = (event: React.MouseEvent) => {
+		if (!isSelectableTextTarget(event.target)) return
+		editor.markEventAsHandled(event)
+		event.stopPropagation()
+	}
+
+	const handleSelectablePointerMoveCapture = (event: React.PointerEvent) => {
+		if (!isSelectableTextTarget(event.target)) return
+		event.stopPropagation()
+	}
+
 	// Get the node's output value
 	const output = useValue(
 		'output',
@@ -197,18 +214,21 @@ function NodeShape({ shape }: { shape: NodeShape }) {
 	)
 
 	const nodeDefinition = getNodeDefinition(editor, shape.props.node)
+	const hideHeaderOutputValue = shape.props.node.type === 'gemini'
 
 	return (
 		<HTMLContainer
 			className={classNames('NodeShape', {
 				NodeShape_executing: isExecuting,
 			})}
+			onPointerDownCapture={handleSelectablePointerCapture}
+			onPointerMoveCapture={handleSelectablePointerMoveCapture}
+			onMouseDownCapture={handleSelectableMouseCapture}
+			onMouseUpCapture={handleSelectableMouseCapture}
+			onClickCapture={handleSelectableClickCapture}
+			onDoubleClickCapture={handleSelectableClickCapture}
 			style={{
-				width: `${
-					shape.props.node.type === 'code'
-						? Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
-						: NODE_WIDTH_PX
-				}px`,
+				width: `${getShapeWidth(shape)}px`,
 				height: `${getNodeHeightPx(editor, shape)}px`,
 			}}
 		>
@@ -216,14 +236,63 @@ function NodeShape({ shape }: { shape: NodeShape }) {
 				<div className="NodeShape-label">{nodeDefinition.heading ?? nodeDefinition.title}</div>
 				{output !== undefined && (
 					<>
-						<div className="NodeShape-output">
-							<NodeValue value={output.isOutOfDate ? STOP_EXECUTION : output.value} />
-						</div>
+						{!hideHeaderOutputValue && (
+							<div className="NodeShape-output">
+								<NodeValue value={output.isOutOfDate ? STOP_EXECUTION : output.value} />
+							</div>
+						)}
 						<Port shapeId={shape.id} portId="output" />
 					</>
 				)}
 			</div>
-			<NodeBody shape={shape} />
+			<div className="NodeShape-body">
+				<NodeBody shape={shape} />
+			</div>
 		</HTMLContainer>
 	)
+}
+
+function isSelectableTextTarget(target: EventTarget | null): target is HTMLElement {
+	const element =
+		target instanceof HTMLElement
+			? target
+			: target instanceof Node
+				? target.parentElement
+				: null
+
+	if (!element) return false
+
+	return Boolean(
+		element.closest(
+			[
+				'input',
+				'textarea',
+				'pre',
+				'[contenteditable="true"]',
+				'.OutputNode-display',
+				'.OutputNode-value',
+				'.GeminiNodeSimple-panelBody',
+				'.CodeNode-console-output',
+				'.cm-content',
+				'.cm-line',
+				'.NodePortValueDropdown-panel',
+			].join(',')
+		)
+	)
+}
+
+function getShapeWidth(shape: NodeShape): number {
+	return Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
+}
+
+function getNodeMinHeight(editor: Editor, shape: NodeShape): number {
+	const baseShape = {
+		...shape,
+		props: {
+			...shape.props,
+			h: 0,
+		},
+	} as NodeShape
+
+	return getNodeHeightPx(editor, baseShape)
 }

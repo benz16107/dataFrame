@@ -1,5 +1,5 @@
 import classNames from 'classnames'
-import { PointerEvent, useCallback, useRef, useState } from 'react'
+import { MouseEvent, PointerEvent, useCallback, useRef, useState } from 'react'
 import {
 	Editor,
 	T,
@@ -37,6 +37,18 @@ export interface ExecutionResult {
 
 export interface InputValues {
 	[key: string]: WorkflowValue
+}
+
+export function asNumber(
+	value: WorkflowValue | STOP_EXECUTION | null | undefined,
+	fallback = 0
+): number {
+	if (typeof value === 'number' && Number.isFinite(value)) return value
+	if (typeof value === 'string') {
+		const parsed = Number(value.trim())
+		if (Number.isFinite(parsed)) return parsed
+	}
+	return fallback
 }
 
 export interface NodeComponentProps<Node extends { type: string }> {
@@ -273,6 +285,123 @@ export function NodeValue({ value }: { value: WorkflowValue | STOP_EXECUTION }) 
 	}
 
 	return <>{String(value)}</>
+}
+
+function formatPortPreviewValue(value: WorkflowValue | STOP_EXECUTION): string {
+	if (value === STOP_EXECUTION) {
+		return '(out of date)'
+	}
+
+	if (value === undefined) {
+		return '(undefined)'
+	}
+
+	if (value === null) {
+		return 'null'
+	}
+
+	if (typeof value === 'string') {
+		return value.length > 0 ? value : '(empty string)'
+	}
+
+	if (typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+		return String(value)
+	}
+
+	try {
+		return JSON.stringify(value, null, 2)
+	} catch {
+		return String(value)
+	}
+}
+
+export function PortValueDropdown({
+	title,
+	value,
+	align = 'left',
+}: {
+	title?: string
+	value: WorkflowValue | STOP_EXECUTION
+	align?: 'left' | 'right'
+}) {
+	const onPointerDown = useCallback((event: PointerEvent<HTMLElement>) => {
+		event.stopPropagation()
+	}, [])
+
+	return (
+		<details
+			className={classNames('NodePortValueDropdown', align === 'right' && 'NodePortValueDropdown--right')}
+			onPointerDown={onPointerDown}
+			onClick={(event) => event.stopPropagation()}
+		>
+			<summary className="NodePortValueDropdown-trigger" title={title ?? 'View value'}>
+				▾
+			</summary>
+			<pre className="NodePortValueDropdown-panel">{formatPortPreviewValue(value)}</pre>
+		</details>
+	)
+}
+
+async function writeTextToClipboard(text: string): Promise<void> {
+	if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+		await navigator.clipboard.writeText(text)
+		return
+	}
+
+	const textArea = document.createElement('textarea')
+	textArea.value = text
+	textArea.setAttribute('readonly', 'true')
+	textArea.style.position = 'fixed'
+	textArea.style.opacity = '0'
+	textArea.style.pointerEvents = 'none'
+	document.body.appendChild(textArea)
+	textArea.select()
+	document.execCommand('copy')
+	document.body.removeChild(textArea)
+}
+
+export function CopyTextButton({
+	getText,
+	title = 'Copy text',
+	className,
+	disabled = false,
+}: {
+	getText: () => string
+	title?: string
+	className?: string
+	disabled?: boolean
+}) {
+	const [copied, setCopied] = useState(false)
+
+	const handlePointerDown = useCallback((event: PointerEvent<HTMLButtonElement>) => {
+		event.stopPropagation()
+	}, [])
+
+	const handleClick = useCallback(async (event: MouseEvent<HTMLButtonElement>) => {
+		event.preventDefault()
+		event.stopPropagation()
+		if (disabled) return
+
+		const text = getText()
+		await writeTextToClipboard(text)
+		setCopied(true)
+		window.setTimeout(() => setCopied(false), 900)
+	}, [disabled, getText])
+
+	return (
+		<button
+			type="button"
+			className={classNames('NodeCopyButton', className)}
+			title={title}
+			disabled={disabled}
+			onPointerDown={handlePointerDown}
+			onClick={(event) => {
+				void handleClick(event)
+			}}
+		>
+			{copied ? 'Copied' : 'Copy'}
+		</button>
+	)
 }
 
 export function areAnyInputsOutOfDate(inputs: InfoValues): boolean {

@@ -47,9 +47,9 @@ export function OnCanvasComponentPicker() {
 		<OnCanvasComponentPickerDialog onClose={onClose}>
 			<TldrawUiMenuGroup id="nodes">
 				<OnCanvasComponentPickerItem definition={nodeDefs.code} onClose={onClose} />
+				<OnCanvasComponentPickerItem definition={nodeDefs.textOutput} onClose={onClose} />
+				<OnCanvasComponentPickerItem definition={nodeDefs.numberOutput} onClose={onClose} />
 				<OnCanvasComponentPickerItem definition={nodeDefs.output} onClose={onClose} />
-				<OnCanvasComponentPickerItem definition={nodeDefs.graphOutput} onClose={onClose} />
-				<OnCanvasComponentPickerItem definition={nodeDefs.slider} onClose={onClose} />
 			</TldrawUiMenuGroup>
 		</OnCanvasComponentPickerDialog>
 	)

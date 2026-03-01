@@ -1,3 +1,4 @@
+import { useCallback } from 'react'
 import { T, useEditor, useValue } from 'tldraw'
 import {
 	NODE_HEADER_HEIGHT_PX,
@@ -8,6 +9,7 @@ import { Port, ShapePort } from '../../ports/Port'
 import { getNodeInputPortValues } from '../nodePorts'
 import { NodeShape } from '../NodeShapeUtil'
 import {
+	CopyTextButton,
 	ExecutionResult,
 	InfoValues,
 	InputValues,
@@ -15,6 +17,7 @@ import {
 	NodeDefinition,
 	NodeRow,
 	STOP_EXECUTION,
+	WorkflowValue,
 } from './shared'
 
 // Simple display icon
@@ -32,7 +35,7 @@ export type OutputNode = T.TypeOf<typeof OutputNode>
 export const OutputNode = T.object({
 	type: T.literal('output'),
 	label: T.string,
-	lastValue: T.number.nullable(),
+	lastValue: T.any.nullable(),
 })
 
 export class OutputNodeDefinition extends NodeDefinition<OutputNode> {
@@ -66,7 +69,7 @@ export class OutputNodeDefinition extends NodeDefinition<OutputNode> {
 	}
 
 	async execute(shape: NodeShape, node: OutputNode, inputs: InputValues): Promise<ExecutionResult> {
-		const inputValue = inputs['input'] ?? 0
+		const inputValue = inputs['input'] ?? null
 
 		// Update the node with the received value
 		this.editor.updateShape({
@@ -95,6 +98,17 @@ export class OutputNodeDefinition extends NodeDefinition<OutputNode> {
 
 export function OutputNodeComponent({ shape, node }: NodeComponentProps<OutputNode>) {
 	const editor = useEditor()
+	const handleSelectablePointerDown = useCallback((event: React.PointerEvent) => {
+		editor.markEventAsHandled(event)
+		event.stopPropagation()
+	}, [editor])
+	const handleSelectableMouseDown = useCallback((event: React.MouseEvent) => {
+		editor.markEventAsHandled(event)
+		event.stopPropagation()
+	}, [editor])
+	const handleSelectableWheel = useCallback((event: React.WheelEvent) => {
+		event.stopPropagation()
+	}, [])
 
 	// Get the current input value from connected nodes
 	const inputValue = useValue(
@@ -118,9 +132,21 @@ export function OutputNodeComponent({ shape, node }: NodeComponentProps<OutputNo
 				<Port shapeId={shape.id} portId="input" />
 				<span className="OutputNode-label">{node.label}</span>
 			</NodeRow>
-			<div className="OutputNode-display">
+			<div
+				className="OutputNode-display"
+				onPointerDownCapture={handleSelectablePointerDown}
+				onMouseDownCapture={handleSelectableMouseDown}
+				onWheelCapture={handleSelectableWheel}
+			>
+				<CopyTextButton
+					title="Copy output"
+					getText={() => (displayValue === null ? '' : formatValue(displayValue))}
+					disabled={displayValue === null}
+				/>
 				{displayValue !== null ? (
-					<span className="OutputNode-value">{formatValue(displayValue)}</span>
+					<span className={`OutputNode-value ${typeof displayValue === 'number' ? 'OutputNode-value--number' : 'OutputNode-value--text'}`}>
+						{formatValue(displayValue)}
+					</span>
 				) : (
 					<span className="OutputNode-placeholder">No value</span>
 				)}
@@ -129,14 +155,24 @@ export function OutputNodeComponent({ shape, node }: NodeComponentProps<OutputNo
 	)
 }
 
-function formatValue(value: number): string {
-	if (!isFinite(value)) return String(value)
+function formatValue(value: WorkflowValue): string {
+	if (typeof value === 'number') {
+		if (!isFinite(value)) return String(value)
 
-	// Format with reasonable precision
-	if (Number.isInteger(value)) {
-		return value.toLocaleString()
+		if (Number.isInteger(value)) {
+			return value.toLocaleString()
+		}
+
+		return value.toPrecision(6).replace(/\.?0+$/, '')
 	}
 
-	// For decimals, show up to 6 significant digits
-	return value.toPrecision(6).replace(/\.?0+$/, '')
+	if (typeof value === 'string') return value
+	if (typeof value === 'boolean') return value ? 'true' : 'false'
+	if (value === null || value === undefined) return ''
+
+	try {
+		return JSON.stringify(value, null, 2)
+	} catch {
+		return String(value)
+	}
 }

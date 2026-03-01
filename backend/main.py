@@ -1,4 +1,7 @@
 import os
+import ast
+import json
+import re
 import uuid as uuid_lib
 from typing import Annotated, Any
 
@@ -16,13 +19,32 @@ from sqlalchemy import Column, JSON, text
 from starlette.middleware.sessions import SessionMiddleware
 
 # 1. NEW IMPORT FOR GEMINI
-from google import genai
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 load_dotenv()
 
 # 2. INITIALIZE GEMINI CLIENT
 # Make sure GEMINI_API_KEY is in your .env file
-client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
+client = genai.Client(api_key=gemini_api_key) if genai and gemini_api_key else None
+
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_SYSTEM_PROMPT = os.getenv(
+    "GEMINI_SYSTEM_PROMPT",
+    (
+        "You are a deterministic data transformation tool used inside a workflow node. "
+        "Do not provide advice, explanations, suggestions, warnings, or conversational text. "
+        "Only return the requested transformed/generated result as a Python-object-compatible value. "
+        "Valid outputs: string, int, float, bool, null/None, list, or dict. "
+        "Prefer strict JSON-compatible syntax when possible so it can be parsed reliably. "
+        "If multiple outputs are needed, return a dict with keys output, output2, output3, etc. "
+        "If a single output is needed, return only that single value. "
+        "Return only data, no markdown, no code fences, no surrounding prose."
+    ),
+)
 
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -68,6 +90,127 @@ class Shape(SQLModel, table=True):
 # 3. CHAT REQUEST MODEL
 class ChatRequest(BaseModel):
     message: str
+
+
+def _strip_code_fence(text: str) -> str:
+    cleaned = text.strip()
+    if cleaned.startswith("```") and cleaned.endswith("```"):
+        lines = cleaned.splitlines()
+        if len(lines) >= 2:
+            body = "\n".join(lines[1:-1]).strip()
+            return body
+    return cleaned
+
+
+def _coerce_to_python_object(text: str) -> Any:
+    cleaned = _strip_code_fence(text)
+    if cleaned == "":
+        return ""
+
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        pass
+
+    try:
+        return ast.literal_eval(cleaned)
+    except Exception:
+        pass
+
+    fragment = _extract_structured_fragment(cleaned)
+    if fragment is not None:
+        try:
+            return json.loads(fragment)
+        except Exception:
+            pass
+        try:
+            return ast.literal_eval(fragment)
+        except Exception:
+            pass
+
+    lowered = cleaned.lower()
+    if lowered == "none" or lowered == "null":
+        return None
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+
+    try:
+        if cleaned.isdigit() or (cleaned.startswith("-") and cleaned[1:].isdigit()):
+            return int(cleaned)
+        return float(cleaned)
+    except Exception:
+        return cleaned
+
+
+def _extract_structured_fragment(text: str) -> str | None:
+    candidates: list[str] = []
+
+    def _collect_balanced(open_char: str, close_char: str) -> None:
+        start = text.find(open_char)
+        if start == -1:
+            return
+
+        depth = 0
+        in_string = False
+        escaped = False
+        quote_char = ""
+
+        for index in range(start, len(text)):
+            ch = text[index]
+
+            if in_string:
+                if escaped:
+                    escaped = False
+                    continue
+                if ch == "\\":
+                    escaped = True
+                    continue
+                if ch == quote_char:
+                    in_string = False
+                continue
+
+            if ch == '"' or ch == "'":
+                in_string = True
+                quote_char = ch
+                continue
+
+            if ch == open_char:
+                depth += 1
+            elif ch == close_char:
+                depth -= 1
+                if depth == 0:
+                    fragment = text[start : index + 1].strip()
+                    if fragment:
+                        candidates.append(fragment)
+                    return
+
+    _collect_balanced("{", "}")
+    _collect_balanced("[", "]")
+
+    if not candidates:
+        return None
+
+    for candidate in sorted(candidates, key=len, reverse=True):
+        if candidate.startswith("{") and candidate.endswith("}"):
+            return candidate
+    return sorted(candidates, key=len, reverse=True)[0]
+
+
+def _extract_retry_after_seconds(error_text: str) -> int | None:
+    patterns = [
+        r"retry in\s+([0-9]+(?:\.[0-9]+)?)s",
+        r"retryDelay['\"]?\s*:\s*['\"]([0-9]+)s['\"]",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, error_text, re.IGNORECASE)
+        if match:
+            try:
+                return max(1, int(float(match.group(1))))
+            except Exception:
+                return None
+    return None
 
 
 sqlite_file_name = "database.db"
@@ -189,18 +332,41 @@ def on_startup():
 # 4. GEMINI CHAT ENDPOINT
 @app.post("/api/chat")
 async def chat_with_ai(request: ChatRequest):
+    if client is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Gemini is not configured. Install google-genai and set GEMINI_API_KEY.",
+        )
+
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model=GEMINI_MODEL,
             contents=request.message,
             config={
-                "system_instruction": "You are a helpful coding assistant on an application that uses Tldraw canvas to run code python code within the browser. Users will ask you questions on how to use Tldraw and coding questions Be concise."
+                "system_instruction": GEMINI_SYSTEM_PROMPT
             }
         )
-        return {"reply": response.text}
+        reply_text = (response.text or "").strip()
+        output_value = _coerce_to_python_object(reply_text)
+        return {"reply": reply_text, "output": output_value}
     except Exception as e:
-        print(f"\n🔥 GEMINI CRASH REASON: {str(e)}\n")
-        raise HTTPException(status_code=500, detail=str(e))
+        raw_error = str(e)
+        print(f"\n🔥 GEMINI CRASH REASON: {raw_error}\n")
+
+        error_upper = raw_error.upper()
+        is_quota_error = "RESOURCE_EXHAUSTED" in error_upper or "QUOTA" in error_upper
+        is_rate_error = "429" in raw_error or "RATE LIMIT" in error_upper
+
+        if is_quota_error or is_rate_error:
+            retry_after = _extract_retry_after_seconds(raw_error)
+            detail = (
+                "Gemini API quota/rate limit reached. "
+                "Please retry shortly, use a different model, or check billing/quota limits."
+            )
+            headers = {"Retry-After": str(retry_after)} if retry_after else None
+            raise HTTPException(status_code=429, detail=detail, headers=headers)
+
+        raise HTTPException(status_code=500, detail="Gemini request failed.")
 
 
 def get_owned_canvas_or_404(session: Session, canvas_id: str, owner_sub: str) -> Canvas:
