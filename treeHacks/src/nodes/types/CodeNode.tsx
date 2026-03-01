@@ -57,7 +57,7 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	getDefault(): CodeNode {
 		return {
 			type: 'code',
-			code: "# Inputs: in_0, in_1, ...\n# Set 'output' to send value downstream\n\noutput = in_0 * 2\nprint(f'Result: {output}')\n",
+			code: "",
 			inputs: indexList([0]),
 			outputs: indexList([0]),
 			lastResult: null,
