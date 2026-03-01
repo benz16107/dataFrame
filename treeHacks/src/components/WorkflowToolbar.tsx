@@ -22,7 +22,6 @@ import {
 	StarToolbarItem,
 	TextToolbarItem,
 	TldrawUiMenuGroup,
-	tlmenus,
 	TLShapeId,
 	TLUiOverrides,
 	ToolbarItem,
@@ -32,7 +31,6 @@ import {
 } from 'tldraw'
 import { NodeShape } from '../nodes/NodeShapeUtil'
 import { getNodeDefinitions, NodeType } from '../nodes/nodeTypes'
-import { MATH_MENU_ID, MathematicalToolbarItem } from './MathematicalToolbarItem'
 
 function createNodeShape(editor: Editor, shapeId: TLShapeId, center: Vec, node: NodeType) {
 	// Mark a history stopping point for undo/redo
@@ -76,7 +74,6 @@ export const overrides: TLUiOverrides = {
 						editor.getViewportPageBounds().center,
 						nodeDef.getDefault()
 					)
-					tlmenus.deleteOpenMenu(MATH_MENU_ID, editor.contextId)
 				},
 				onDragStart: (_, info) => {
 					onDragFromToolbarToCreateShape(editor, info, {
@@ -86,9 +83,6 @@ export const overrides: TLUiOverrides = {
 								type: 'node',
 								props: { node: nodeDef.getDefault() },
 							})
-						},
-						onDragEnd: () => {
-							tlmenus.deleteOpenMenu(MATH_MENU_ID, editor.contextId)
 						},
 					})
 				},
@@ -111,10 +105,7 @@ export function WorkflowToolbar() {
 			<TldrawUiMenuGroup id="nodes">
 				<ToolbarItem tool="node-code" />
 				<ToolbarItem tool="node-output" />
-				<MathematicalToolbarItem />
 				<ToolbarItem tool="node-slider" />
-				<ToolbarItem tool="node-conditional" />
-				<ToolbarItem tool="node-earthquake" />
 			</TldrawUiMenuGroup>
 
 			<TldrawUiMenuGroup id="shapes">

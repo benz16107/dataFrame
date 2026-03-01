@@ -45,14 +45,10 @@ export function OnCanvasComponentPicker() {
 
 	return (
 		<OnCanvasComponentPickerDialog onClose={onClose}>
-			<TldrawUiMenuGroup id="math">
-				<OnCanvasComponentPickerItem definition={nodeDefs.add} onClose={onClose} />
-				<OnCanvasComponentPickerItem definition={nodeDefs.subtract} onClose={onClose} />
-				<OnCanvasComponentPickerItem definition={nodeDefs.multiply} onClose={onClose} />
-				<OnCanvasComponentPickerItem definition={nodeDefs.divide} onClose={onClose} />
-			</TldrawUiMenuGroup>
-			<TldrawUiMenuGroup id="logic">
-				<OnCanvasComponentPickerItem definition={nodeDefs.conditional} onClose={onClose} />
+			<TldrawUiMenuGroup id="nodes">
+				<OnCanvasComponentPickerItem definition={nodeDefs.code} onClose={onClose} />
+				<OnCanvasComponentPickerItem definition={nodeDefs.output} onClose={onClose} />
+				<OnCanvasComponentPickerItem definition={nodeDefs.slider} onClose={onClose} />
 			</TldrawUiMenuGroup>
 		</OnCanvasComponentPickerDialog>
 	)
