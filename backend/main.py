@@ -348,7 +348,7 @@ def _extract_retry_after_seconds(error_text: str) -> int | None:
     return None
 
 
-sqlite_file_name = "database.db"
+sqlite_file_name = os.getenv("SQLITE_FILE", "database.db")
 sqlite_url = f"sqlite:///{sqlite_file_name}"
 
 connect_args = {"check_same_thread": False}
