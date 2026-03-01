@@ -354,10 +354,9 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			<div
 				className="CodeNode-editor"
 				style={{ pointerEvents: 'all' }}
-				onPointerDown={onPointerDown}
 				onKeyDown={(e) => e.stopPropagation()}
 			>
-				<div className="CodeNode-editor-header" onPointerDown={onPointerDown}>
+				<div className="CodeNode-editor-header">
 					<span>python</span>
 					<button
 						onClick={executePython}
@@ -387,7 +386,6 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 					maxHeight: `${consoleHeight}px`,
 					minHeight: `${consoleHeight}px`,
 				}}
-				onPointerDown={onPointerDown}
 			>
 				<div className="CodeNode-console-header">Console</div>
 				{output && <pre className="CodeNode-console-output">{output}</pre>}

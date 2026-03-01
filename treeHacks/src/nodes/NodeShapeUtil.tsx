@@ -81,7 +81,10 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	// Define the geometry of our node shape including ports
 	getGeometry(shape: NodeShape) {
 		const ports = getNodePorts(this.editor, shape)
-		const width = shape.props.node.type === 'code' ? Math.max(NODE_WIDTH_PX, shape.props.w) : NODE_WIDTH_PX
+		const width =
+			shape.props.node.type === 'code'
+				? Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
+				: NODE_WIDTH_PX
 
 		const portGeometries = Object.values(ports).map(
 			(port) =>
@@ -135,7 +138,10 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 function NodeShapeIndicator({ shape, ports }: { shape: NodeShape; ports: ShapePort[] }) {
 	const id = useUniqueSafeId()
 	const editor = useEditor()
-	const width = shape.props.node.type === 'code' ? Math.max(NODE_WIDTH_PX, shape.props.w) : NODE_WIDTH_PX
+	const width =
+		shape.props.node.type === 'code'
+			? Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
+			: NODE_WIDTH_PX
 
 	return (
 		<>
@@ -198,7 +204,11 @@ function NodeShape({ shape }: { shape: NodeShape }) {
 				NodeShape_executing: isExecuting,
 			})}
 			style={{
-				width: `${shape.props.node.type === 'code' ? Math.max(NODE_WIDTH_PX, shape.props.w) : NODE_WIDTH_PX}px`,
+				width: `${
+					shape.props.node.type === 'code'
+						? Math.max(NODE_WIDTH_PX, shape.props.w ?? NODE_WIDTH_PX)
+						: NODE_WIDTH_PX
+				}px`,
 				height: `${getNodeHeightPx(editor, shape)}px`,
 			}}
 		>
