@@ -32,8 +32,11 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className='min-h-screen flex items-center justify-center'>
-        <p>Loading session...</p>
+      <div className='app-shell'>
+        <div className='app-card app-card-sm app-center'>
+          <h1 className='app-title'>TreeHacks</h1>
+          <p className='app-subtitle'>Loading session...</p>
+        </div>
       </div>
     )
   }

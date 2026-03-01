@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
-import { loadCanvases, upsertCanvas } from "@/lib/canvasStore";
+import { loadCanvases, removeCanvas, upsertCanvas } from "@/lib/canvasStore";
 import { fetchProfile, getApiBaseUrl, getLoginUrl, getLogoutUrl, logoutSession } from "@/lib/auth";
 
 type CanvasMeta = {
@@ -223,6 +223,37 @@ export default function DashboardPage() {
     cancelEdit();
   };
 
+  const handleDelete = async (canvas: CanvasMeta) => {
+    const shouldDelete = window.confirm(`Delete "${canvas.name}"?`);
+    if (!shouldDelete) return;
+
+    try {
+      const response = await fetch(`${apiBase}/canvas/${canvas.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+
+      if (response.status === 401 || response.status === 403) {
+        window.location.href = getLoginUrl("/dashboard");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: failed to delete canvas`);
+      }
+
+      removeCanvas(canvas.id);
+      setAllCanvases((prev) => prev.filter((existingCanvas) => existingCanvas.id !== canvas.id));
+
+      if (editingId === canvas.id) {
+        cancelEdit();
+      }
+    } catch (error) {
+      console.error("Error deleting canvas:", error);
+      setCreateError("Could not delete canvas. Please try again.");
+    }
+  };
+
   return (
     <div className="min-h-screen dash-bg">
       <div className="dash-glow" />
@@ -237,7 +268,6 @@ export default function DashboardPage() {
         <div className="dash-actions">
           {userName ? (
             <>
-              <span className="dash-chip">{userName}</span>
               <button onClick={handleSignOut} className="dash-btn dash-btn-ghost">
                 Sign out
               </button>
@@ -378,7 +408,7 @@ export default function DashboardPage() {
                 )}
                 <div className="dash-card-actions">
                   <Link to={`/canvas?id=${canvas.id}`} className="dash-btn dash-btn-outline">
-                    Resume
+                    Open
                   </Link>
                   {editingId === canvas.id ? (
                     <>
@@ -390,9 +420,29 @@ export default function DashboardPage() {
                       </button>
                     </>
                   ) : (
-                    <button className="dash-btn dash-btn-ghost" onClick={() => startEdit(canvas)}>
-                      Rename
-                    </button>
+                    <select
+                      className="dash-btn dash-btn-ghost"
+                      defaultValue=""
+                      onChange={(event) => {
+                        const action = event.target.value;
+                        event.target.value = "";
+
+                        if (action === "rename") {
+                          startEdit(canvas);
+                          return;
+                        }
+
+                        if (action === "delete") {
+                          void handleDelete(canvas);
+                        }
+                      }}
+                    >
+                      <option value="" disabled>
+                        Actions
+                      </option>
+                      <option value="rename">Rename</option>
+                      <option value="delete">Delete</option>
+                    </select>
                   )}
                 </div>
               </article>

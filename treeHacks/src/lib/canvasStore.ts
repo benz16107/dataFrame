@@ -27,6 +27,12 @@ export function upsertCanvas(meta: CanvasMeta) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
 
+export function removeCanvas(id: string) {
+  const list = loadCanvases();
+  const next = list.filter((canvas) => canvas.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+}
+
 export function touchCanvas(id: string, name = "Untitled Canvas") {
   upsertCanvas({
     id,
