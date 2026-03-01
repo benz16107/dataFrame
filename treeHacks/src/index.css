@@ -588,7 +588,7 @@ body {
 
 .NodeCopyButton {
 	border: 1px solid var(--tl-color-muted-2);
-	background: var(--tl-color-panel);
+	background: #ffffff;
 	color: var(--tl-color-text-2);
 	border-radius: var(--tl-radius-2);
 	padding: 2px 8px;
@@ -617,9 +617,10 @@ body {
 	display: flex;
 	flex-direction: column;
 	margin: 0 var(--tl-space-2);
-	border-radius: var(--tl-radius-2);
+	border-radius: var(--tl-radius-3);
+	border: 1px solid var(--tl-color-muted-2);
 	overflow: hidden;
-	background: #1e1e1e;
+	background: var(--tl-color-panel);
 	overscroll-behavior: contain;
 
 	[data-state='select.idle'] & {
@@ -632,10 +633,12 @@ body {
 	justify-content: space-between;
 	align-items: center;
 	padding: var(--tl-space-2) var(--tl-space-3);
-	background: #2d2d2d;
+	background: var(--tl-color-muted-0);
+	border-bottom: 1px solid var(--tl-color-muted-2);
 	font-size: 11px;
-	color: #888;
-	font-family: monospace;
+	color: var(--tl-color-text-2);
+	font-family: inherit;
+	font-weight: 600;
 }
 
 .CodeNode-header-actions {
@@ -644,10 +647,91 @@ body {
 	gap: 6px;
 }
 
+.CodeNode-ai-assist {
+	margin: var(--tl-space-2);
+	padding: var(--tl-space-2);
+	border-radius: var(--tl-radius-3);
+	border: 1px solid var(--tl-color-muted-2);
+	background: var(--tl-color-muted-0);
+	display: flex;
+	flex-direction: column;
+	gap: var(--tl-space-2);
+	overscroll-behavior: contain;
+
+	[data-state='select.idle'] & {
+		pointer-events: all;
+	}
+}
+
+.CodeNode-ai-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--tl-space-2);
+	font-size: 11px;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	text-transform: none;
+	font-weight: 600;
+	font-family: inherit;
+	color: var(--tl-color-text-2);
+}
+
+.CodeNode-ai-prompt {
+	width: 100%;
+	height: 52px;
+	min-height: 52px;
+	max-height: 52px;
+	resize: none;
+	border: 1px solid var(--tl-color-muted-2);
+	border-radius: var(--tl-radius-2);
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-1);
+	padding: 6px 8px;
+	font-size: 11px;
+	line-height: 1.3;
+	outline: none;
+	overflow-y: auto;
+}
+
+.CodeNode-ai-prompt::placeholder {
+	color: var(--tl-color-text-3);
+}
+
+.CodeNode-ai-prompt:focus {
+	border-color: var(--tl-color-selected);
+}
+
+.CodeNode-generate-button {
+	border: 1px solid var(--tl-color-selected);
+	background: var(--tl-color-selected);
+	color: #ffffff;
+	border-radius: var(--tl-radius-2);
+	padding: 4px 10px;
+	font-size: 10px;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.CodeNode-generate-button:hover {
+	filter: brightness(0.94);
+}
+
+.CodeNode-generate-button:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.CodeNode-ai-error {
+	font-size: 10px;
+	line-height: 1.3;
+	color: #b91c1c;
+}
+
 .CodeNode-run-button {
-	background: #10b981;
-	color: white;
-	border: none;
+	background: var(--tl-color-selected);
+	color: #ffffff;
+	border: 1px solid var(--tl-color-selected);
 	border-radius: var(--tl-radius-2);
 	padding: 4px 12px;
 	font-size: 11px;
@@ -655,19 +739,21 @@ body {
 	font-weight: 500;
 
 	&:hover {
-		background: #059669;
+		filter: brightness(0.94);
 	}
 
 	&:disabled {
-		background: #555;
+		background: var(--tl-color-muted-1);
+		border-color: var(--tl-color-muted-2);
+		color: var(--tl-color-text-3);
 		cursor: not-allowed;
 	}
 }
 
 .CodeNode-clear-button {
-	background: #334155;
-	color: white;
-	border: none;
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-2);
+	border: 1px solid var(--tl-color-muted-2);
 	border-radius: var(--tl-radius-2);
 	padding: 4px 10px;
 	font-size: 11px;
@@ -675,11 +761,14 @@ body {
 	font-weight: 500;
 
 	&:hover {
-		background: #1f2937;
+		border-color: var(--tl-color-selected);
+		color: var(--tl-color-text-1);
 	}
 
 	&:disabled {
-		background: #64748b;
+		background: var(--tl-color-muted-0);
+		border-color: var(--tl-color-muted-2);
+		color: var(--tl-color-text-3);
 		cursor: not-allowed;
 		opacity: 0.55;
 	}
@@ -687,8 +776,9 @@ body {
 
 .CodeNode-console {
 	margin: var(--tl-space-2);
-	background: #000;
-	border-radius: var(--tl-radius-2);
+	background: var(--tl-color-panel);
+	border-radius: var(--tl-radius-3);
+	border: 1px solid var(--tl-color-muted-2);
 	min-height: 60px;
 	max-height: 80px;
 	overflow-y: auto;
@@ -706,27 +796,30 @@ body {
 	gap: var(--tl-space-2);
 	padding: var(--tl-space-2) var(--tl-space-3);
 	font-size: 10px;
-	color: #666;
+	color: var(--tl-color-text-2);
 	text-transform: uppercase;
-	font-family: monospace;
+	font-family: inherit;
+	font-weight: 600;
+	background: var(--tl-color-muted-0);
+	border-bottom: 1px solid var(--tl-color-muted-2);
 }
 
 .CodeNode-copy-button {
-	background: rgba(15, 23, 42, 0.2);
-	color: #e2e8f0;
-	border-color: rgba(148, 163, 184, 0.45);
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-2);
+	border-color: var(--tl-color-muted-2);
 }
 
 .CodeNode-copy-button:hover {
-	border-color: #94a3b8;
-	color: #f8fafc;
+	border-color: var(--tl-color-selected);
+	color: var(--tl-color-text-1);
 }
 
 .CodeNode-console-output {
 	margin: 0;
 	padding: 0 var(--tl-space-3) var(--tl-space-2);
 	font-size: 12px;
-	color: #fff;
+	color: var(--tl-color-text-1);
 	font-family: monospace;
 	white-space: pre-wrap;
 }
@@ -813,58 +906,125 @@ body {
 	font-style: italic;
 }
 
-/* GraphOutputNode styles */
-.GraphOutputNode {
+/* PlotNode styles */
+.PlotNode {
 	display: flex;
 	flex-direction: column;
 	width: 100%;
 	min-width: 0;
+	min-height: 0;
 	overflow: hidden;
 }
 
-.GraphOutputNode-inputs {
+.PlotNode-mode-row {
+	display: flex;
+	align-items: center;
+	gap: var(--tl-space-2);
+}
+
+.PlotNode-modeBadge {
+	margin-left: auto;
+	font-size: 10px;
+	line-height: 1.2;
+	padding: 1px 7px;
+	border-radius: 999px;
+	border: 1px solid var(--tl-color-muted-2);
+	color: var(--tl-color-text-2);
+	background: var(--tl-color-panel);
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+}
+
+.PlotNode-card {
+	display: flex;
+	flex-direction: column;
+	gap: var(--tl-space-2);
+	margin: 0 var(--tl-space-2);
+	padding: var(--tl-space-2);
+	border: 1px solid var(--tl-color-muted-2);
+	border-radius: var(--tl-radius-3);
+	background: var(--tl-color-panel);
+	min-height: 0;
+	overflow: hidden;
+}
+
+.PlotNode-inputs {
 	display: flex;
 	flex-direction: column;
 }
 
-.GraphOutputNode-input-row {
+.PlotNode-input-row {
 	display: flex;
 	align-items: center;
 	gap: var(--tl-space-2);
 	min-height: 36px;
 }
 
-.GraphOutputNode-label {
+.PlotNode-label {
 	font-size: 12px;
 	color: var(--tl-color-text-2);
 }
 
-.GraphOutputNode-current {
+.PlotNode-current {
 	margin-left: auto;
 	font-size: 12px;
 	font-variant-numeric: tabular-nums;
 	color: var(--tl-color-text-1);
+	max-width: 58%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
-.GraphOutputNode-chart {
+.PlotNode-chartWrap {
+	display: flex;
+	flex-direction: column;
+	gap: var(--tl-space-1);
+}
+
+.PlotNode-chartHeader {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--tl-space-2);
+	font-size: 10px;
+	line-height: 1.2;
+	letter-spacing: 0.02em;
+	text-transform: uppercase;
+	color: var(--tl-color-text-2);
+	font-weight: 600;
+}
+
+.PlotNode-chartMeta {
+	font-variant-numeric: tabular-nums;
+	font-weight: 500;
+	text-transform: none;
+	letter-spacing: normal;
+}
+
+.PlotNode-chart {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 	min-height: 92px;
-	margin: 0 var(--tl-space-3);
+	margin: 0;
 	padding: var(--tl-space-2);
 	background: var(--tl-color-muted-0);
 	border-radius: var(--tl-radius-2);
+	border: 1px solid var(--tl-color-muted-2);
 	overflow: hidden;
 }
 
-.GraphOutputNode-svg {
-	width: 100%;
-	height: 92px;
+.PlotNode-svg {
+	width: auto;
+	height: auto;
+	max-width: 100%;
+	max-height: 92px;
 	display: block;
+	margin: 0 auto;
 }
 
-.GraphOutputNode-line {
+.PlotNode-line {
 	fill: none;
 	stroke: var(--tl-color-selected);
 	stroke-width: 2;
@@ -872,10 +1032,83 @@ body {
 	stroke-linecap: round;
 }
 
-.GraphOutputNode-empty {
+.PlotNode-axisLine {
+	stroke: var(--tl-color-muted-2);
+	stroke-width: 1;
+	opacity: 0.65;
+}
+
+.PlotNode-axisTick {
+	stroke: var(--tl-color-muted-2);
+	stroke-width: 1;
+	opacity: 0.8;
+}
+
+.PlotNode-axisLine--mid {
+	stroke-dasharray: 3 3;
+	opacity: 0.45;
+}
+
+.PlotNode-axisLabel {
+	fill: var(--tl-color-text-3);
+	font-size: 8px;
+	font-variant-numeric: tabular-nums;
+	user-select: none;
+	pointer-events: none;
+}
+
+.PlotNode-axisLabel--x {
+	font-size: 7px;
+}
+
+.PlotNode-dot {
+	fill: var(--tl-color-selected);
+}
+
+.PlotNode-bar {
+	fill: var(--tl-color-selected);
+}
+
+.PlotNode-empty {
 	font-size: 13px;
 	color: var(--tl-color-text-3);
 	font-style: italic;
+}
+
+.PlotNode-details {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: var(--tl-space-1) var(--tl-space-2);
+	padding: var(--tl-space-1) var(--tl-space-2);
+	background: var(--tl-color-muted-0);
+	border: 1px solid var(--tl-color-muted-2);
+	border-radius: var(--tl-radius-2);
+}
+
+.PlotNode-detailItem {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: var(--tl-space-2);
+	min-width: 0;
+}
+
+.PlotNode-detailLabel {
+	font-size: 10px;
+	line-height: 1.2;
+	text-transform: uppercase;
+	letter-spacing: 0.02em;
+	color: var(--tl-color-text-3);
+}
+
+.PlotNode-detailValue {
+	font-size: 11px;
+	line-height: 1.3;
+	color: var(--tl-color-text-1);
+	font-variant-numeric: tabular-nums;
+	white-space: normal;
+	word-break: break-word;
+	text-align: right;
 }
 
 /* GeminiNode styles */

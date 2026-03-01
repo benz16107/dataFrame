@@ -3,6 +3,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { python } from '@codemirror/lang-python'
 import { useState, useCallback, MouseEvent, PointerEvent } from 'react'
 import { Pyodide } from '@/pyodide'
+import { getApiBaseUrl } from '../../lib/auth'
 import { CodeIcon } from '../../components/icons/CodeIcon'
 import {
 	NODE_HEADER_HEIGHT_PX,
@@ -33,6 +34,10 @@ import {
 const CODE_EDITOR_MIN_HEIGHT_PX = 150
 // Height for the console output area
 const CONSOLE_OUTPUT_HEIGHT_PX = 80
+// Height for the AI assistant prompt panel
+const CODE_AI_PANEL_HEIGHT_PX = 88
+
+const API_BASE = getApiBaseUrl()
 
 /**
  * The code node executes Python code. It has a variable number of inputs and outputs.
@@ -45,6 +50,7 @@ export type CodeNode = T.TypeOf<typeof CodeNode>
 export const CodeNode = T.object({
 	type: T.literal('code'),
 	code: T.string,
+	aiPrompt: T.string,
 	inputs: T.dict(T.indexKey, T.any),
 	outputs: T.dict(T.indexKey, T.any),
 	lastResult: T.any.nullable(),
@@ -61,6 +67,7 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 		return {
 			type: 'code',
 			code: '',
+			aiPrompt: '',
 			inputs: indexList([0]),
 			outputs: indexList([null]),
 			lastResult: null,
@@ -72,7 +79,8 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 		const inputRows = indexListLength(node.inputs)
 		const outputRows = indexListLength(node.outputs)
 		const maxRows = Math.max(inputRows, outputRows) + 1
-		const baseBodyHeight = NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
+		const baseBodyHeight =
+			NODE_ROW_HEIGHT_PX * maxRows + CODE_AI_PANEL_HEIGHT_PX + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
 		const overrideBodyHeight = Math.max(
 			0,
 			(shape.props.h || 0) - NODE_HEADER_HEIGHT_PX - NODE_ROW_HEADER_GAP_PX - NODE_ROW_BOTTOM_PADDING_PX
@@ -187,6 +195,8 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 	const editor = useEditor()
 	const [output, setOutput] = useState<string | null>(null)
 	const [isRunning, setIsRunning] = useState(false)
+	const [isGenerating, setIsGenerating] = useState(false)
+	const [aiError, setAiError] = useState<string | null>(null)
 	const inputPortValues = useValue('code input port values', () => getNodeInputPortValues(editor, shape.id), [
 		editor,
 		shape.id,
@@ -194,10 +204,14 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 	const inputRows = indexListLength(node.inputs)
 	const outputRows = indexListLength(node.outputs)
 	const maxRows = Math.max(inputRows, outputRows) + 1
-	const baseBodyHeight = NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
+	const baseBodyHeight =
+		NODE_ROW_HEIGHT_PX * maxRows + CODE_AI_PANEL_HEIGHT_PX + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
 	const bodyHeight = Math.max(baseBodyHeight, shape.props.h || 0)
 	const consoleHeight = Math.max(72, Math.min(140, Math.round(bodyHeight * 0.24)))
-	const editorHeight = Math.max(120, bodyHeight - NODE_ROW_HEIGHT_PX * maxRows - consoleHeight)
+	const editorHeight = Math.max(
+		120,
+		bodyHeight - NODE_ROW_HEIGHT_PX * maxRows - CODE_AI_PANEL_HEIGHT_PX - consoleHeight
+	)
 
 	const onPointerDown = useCallback((event: PointerEvent) => {
 		event.stopPropagation()
@@ -217,6 +231,13 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			...node,
 			code: value,
 		}))
+	}
+
+	const handleAiPromptChange = (value: string) => {
+		updateNode<CodeNode>(editor, shape, (current) => ({
+			...current,
+			aiPrompt: value,
+		}), false)
 	}
 
 	const handleAddInput = () => {
@@ -356,6 +377,75 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 		}
 	}
 
+	const generateCodeWithGemini = async () => {
+		if (isGenerating) return
+
+		const prompt = node.aiPrompt.trim()
+		if (!prompt) {
+			setAiError('Add a prompt for code generation first.')
+			return
+		}
+
+		setIsGenerating(true)
+		setAiError(null)
+
+		try {
+			const inputNames = indexListEntries(node.inputs).map((_, i) => getInputVariableName(i))
+			const outputNames = indexListEntries(node.outputs).map((_, i) => getOutputVariableName(i))
+
+			const generationMessage = [
+				'You are generating Python code for a workflow code node.',
+				'Return only valid Python code. No markdown. No code fences. No prose.',
+				`Available input variables: ${inputNames.join(', ') || '(none)'}`,
+				`Expected output variables to assign: ${outputNames.join(', ') || '(none)'}`,
+				node.code.trim() ? `Existing code to improve:\n${node.code}` : '',
+				`Task:\n${prompt}`,
+			].filter(Boolean).join('\n\n')
+
+			const response = await fetch(`${API_BASE}/api/chat`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({ message: generationMessage }),
+			})
+
+			if (!response.ok) {
+				let detail = `HTTP ${response.status}`
+				try {
+					const payload = (await response.json()) as { detail?: string }
+					if (payload.detail) detail = payload.detail
+				} catch {
+					// keep default detail
+				}
+				throw new Error(detail)
+			}
+
+			const data = (await response.json()) as { reply?: string; output?: unknown }
+			const raw =
+				typeof data.reply === 'string'
+					? data.reply
+					: typeof data.output === 'string'
+						? data.output
+						: typeof data.output === 'object' && data.output !== null
+							? JSON.stringify(data.output, null, 2)
+							: ''
+
+			const generatedCode = extractPythonCode(raw)
+			if (!generatedCode.trim()) {
+				throw new Error('Gemini returned empty code.')
+			}
+
+			updateNode<CodeNode>(editor, shape, (current) => ({
+				...current,
+				code: generatedCode,
+			}), false)
+		} catch (error) {
+			setAiError(error instanceof Error ? error.message : 'Failed to generate code.')
+		} finally {
+			setIsGenerating(false)
+		}
+	}
+
 	return (
 		<div className="CodeNode">
 			{/* Input/Output Ports Row */}
@@ -444,6 +534,34 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				</div>
 			</div>
 
+			<div
+				className="CodeNode-ai-assist"
+				style={{ pointerEvents: 'all' }}
+				onPointerDown={onPointerDown}
+			>
+				<div className="CodeNode-ai-header">
+					<span>Gemini Assist</span>
+					<button
+						type="button"
+						className="CodeNode-generate-button"
+						onPointerDown={onPointerDown}
+						onClick={() => void generateCodeWithGemini()}
+						disabled={isGenerating}
+					>
+						{isGenerating ? 'Generating...' : 'Generate'}
+					</button>
+				</div>
+				<textarea
+					className="CodeNode-ai-prompt"
+					value={node.aiPrompt}
+					onChange={(event) => handleAiPromptChange(event.target.value)}
+					placeholder="Prompt Gemini to generate or refactor this code..."
+					onPointerDown={onPointerDown}
+					onFocus={() => editor.setSelectedShapes([shape.id])}
+				/>
+				{aiError ? <div className="CodeNode-ai-error">{aiError}</div> : null}
+			</div>
+
 			{/* Code Editor */}
 			<div
 				className="CodeNode-editor"
@@ -480,7 +598,7 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				<CodeMirror
 					value={node.code}
 					height={`${editorHeight}px`}
-					theme="dark"
+					theme="light"
 					extensions={[python()]}
 					onChange={handleCodeChange}
 					onWheelCapture={onWheel}
@@ -541,4 +659,18 @@ function getInputVariableName(index: number): string {
 
 function getOutputVariableName(index: number): string {
 	return index === 0 ? 'output' : `output${index + 1}`
+}
+
+function extractPythonCode(text: string): string {
+	const trimmed = text.trim()
+	if (!trimmed) return ''
+
+	if (trimmed.startsWith('```') && trimmed.endsWith('```')) {
+		const lines = trimmed.split(/\r?\n/)
+		if (lines.length >= 2) {
+			return lines.slice(1, -1).join('\n').trim()
+		}
+	}
+
+	return trimmed
 }

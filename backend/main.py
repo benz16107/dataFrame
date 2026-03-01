@@ -42,6 +42,9 @@ GEMINI_SYSTEM_PROMPT = os.getenv(
         "Prefer strict JSON-compatible syntax when possible so it can be parsed reliably. "
         "If multiple outputs are needed, return a dict with keys output, output2, output3, etc. "
         "If a single output is needed, return only that single value. "
+        "For plot requests (single-input Plot node), return one structured payload value only: "
+        "line/scatter payload: {\"x\": [...], \"y\": [...]} or [{\"x\": number, \"y\": number}, ...] or {\"x\": number, \"y\": number}; "
+        "bar payload: {\"labels\": [...], \"values\": [...]} or [{\"label\": string, \"value\": number}, ...] or {\"label\": string, \"value\": number}. "
         "Return only data, no markdown, no code fences, no surrounding prose."
     ),
 )

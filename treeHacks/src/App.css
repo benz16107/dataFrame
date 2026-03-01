@@ -796,9 +796,9 @@
 
 .canvas-top-left-actions {
   position: absolute;
-  bottom: 1rem;
+  top: 1rem;
   left: 1rem;
-  z-index: 60;
+  z-index: 50;
 }
 
 .canvas-top-right-actions {

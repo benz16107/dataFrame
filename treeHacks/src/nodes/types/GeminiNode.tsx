@@ -53,7 +53,7 @@ export class GeminiNodeDefinition extends NodeDefinition<GeminiNode> {
 	getDefault(): GeminiNode {
 		return {
 			type: 'gemini',
-			prompt: 'Summarize and transform this input into a concise result.',
+			prompt: '',
 			inputs: indexList([null]),
 			outputs: indexList([null]),
 			lastInput: null,
@@ -534,6 +534,32 @@ function mapGeminiOutputs(outputValue: unknown, outputNames: string[]): Record<s
 		const hasNamedOutputs = outputNames.some((name) => Object.hasOwn(objectValue, name))
 		if (hasNamedOutputs) {
 			return Object.fromEntries(outputNames.map((name) => [name, objectValue[name] ?? null]))
+		}
+
+		if (outputNames.length >= 2) {
+			const hasXy = Object.hasOwn(objectValue, 'x') && Object.hasOwn(objectValue, 'y')
+			if (hasXy) {
+				const mapped: Record<string, unknown> = Object.fromEntries(outputNames.map((name) => [name, null]))
+				mapped[outputNames[0]] = objectValue.x ?? null
+				mapped[outputNames[1]] = objectValue.y ?? null
+				return mapped
+			}
+
+			const hasBarSeries = Object.hasOwn(objectValue, 'labels') && Object.hasOwn(objectValue, 'values')
+			if (hasBarSeries) {
+				const mapped: Record<string, unknown> = Object.fromEntries(outputNames.map((name) => [name, null]))
+				mapped[outputNames[0]] = objectValue.labels ?? null
+				mapped[outputNames[1]] = objectValue.values ?? null
+				return mapped
+			}
+
+			const hasSingleBar = Object.hasOwn(objectValue, 'label') && Object.hasOwn(objectValue, 'value')
+			if (hasSingleBar) {
+				const mapped: Record<string, unknown> = Object.fromEntries(outputNames.map((name) => [name, null]))
+				mapped[outputNames[0]] = objectValue.label ?? null
+				mapped[outputNames[1]] = objectValue.value ?? null
+				return mapped
+			}
 		}
 	}
 
