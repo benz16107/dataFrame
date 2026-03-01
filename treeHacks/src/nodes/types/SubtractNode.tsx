@@ -10,6 +10,7 @@ import { ShapePort } from '../../ports/Port'
 import { sleep } from '../../utils/sleep'
 import { NodeShape } from '../NodeShapeUtil'
 import {
+	asNumber,
 	areAnyInputsOutOfDate,
 	ExecutionResult,
 	InfoValues,
@@ -48,11 +49,12 @@ export class SubtractNodeDefinition extends NodeDefinition<SubtractNode> {
 	getBodyHeightPx(_shape: NodeShape, _node: SubtractNode) {
 		return NODE_ROW_HEIGHT_PX * 2
 	}
-	getPorts(_shape: NodeShape, _node: SubtractNode): Record<string, ShapePort> {
+	getPorts(shape: NodeShape, _node: SubtractNode): Record<string, ShapePort> {
+		const width = Math.max(NODE_WIDTH_PX, shape.props.w || NODE_WIDTH_PX)
 		return {
 			output: {
 				id: 'output',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX / 2,
 				terminal: 'start',
 			},
@@ -81,7 +83,7 @@ export class SubtractNodeDefinition extends NodeDefinition<SubtractNode> {
 	): Promise<ExecutionResult> {
 		await sleep(1000)
 
-		const result = (inputs.minuend ?? node.a) - (inputs.subtrahend ?? node.b)
+		const result = asNumber(inputs.minuend, node.a) - asNumber(inputs.subtrahend, node.b)
 		updateNode<SubtractNode>(this.editor, shape, (node) => ({
 			...node,
 			lastResult: result,

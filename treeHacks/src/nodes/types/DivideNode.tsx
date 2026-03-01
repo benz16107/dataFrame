@@ -10,6 +10,7 @@ import { ShapePort } from '../../ports/Port'
 import { sleep } from '../../utils/sleep'
 import { NodeShape } from '../NodeShapeUtil'
 import {
+	asNumber,
 	areAnyInputsOutOfDate,
 	ExecutionResult,
 	InfoValues,
@@ -48,11 +49,12 @@ export class DivideNodeDefinition extends NodeDefinition<DivideNode> {
 	getBodyHeightPx(_shape: NodeShape, _node: DivideNode) {
 		return NODE_ROW_HEIGHT_PX * 2
 	}
-	getPorts(_shape: NodeShape, _node: DivideNode): Record<string, ShapePort> {
+	getPorts(shape: NodeShape, _node: DivideNode): Record<string, ShapePort> {
+		const width = Math.max(NODE_WIDTH_PX, shape.props.w || NODE_WIDTH_PX)
 		return {
 			output: {
 				id: 'output',
-				x: NODE_WIDTH_PX,
+				x: width,
 				y: NODE_HEADER_HEIGHT_PX / 2,
 				terminal: 'start',
 			},
@@ -77,7 +79,7 @@ export class DivideNodeDefinition extends NodeDefinition<DivideNode> {
 	async execute(shape: NodeShape, node: DivideNode, inputs: InputValues): Promise<ExecutionResult> {
 		await sleep(1000)
 
-		const result = (inputs.dividend ?? node.a) / (inputs.divisor ?? node.b)
+		const result = asNumber(inputs.dividend, node.a) / asNumber(inputs.divisor, node.b)
 		const validResult = !Number.isFinite(result) ? null : result
 		updateNode<DivideNode>(this.editor, shape, (node) => ({
 			...node,

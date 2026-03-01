@@ -64,8 +64,8 @@ export class Pyodide {
     return value;
   }
 
-  // Run code with inputs and capture the output variable
-  async runWithIO(code, inputs) {
+  // Run code with named inputs and outputs
+  async runWithIO(code, inputs, outputNames = ['output']) {
     const py = await this.init();
 
     // Setup helper functions for DataFrame conversion
@@ -110,8 +110,11 @@ def __from_js_value__(val):
       await py.runPythonAsync(`${name} = __from_js_value__(__temp__)`);
     }
 
-    // Clear any previous output
-    await py.runPythonAsync('output = None');
+    // Clear any previous outputs
+    for (const outputName of outputNames) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(outputName)) continue;
+      await py.runPythonAsync(`${outputName} = None`);
+    }
 
     // Run the user code
     try {
@@ -121,23 +124,34 @@ def __from_js_value__(val):
       throw error;
     }
 
-    // Get and convert the output variable
-    try {
-      await py.runPythonAsync('__output__ = __to_js_value__(output)');
-      const result = py.globals.get('__output__');
-
-      if (result === undefined || result === null || String(result) === 'None') {
-        return null;
+    // Get and convert named output variables
+    const results = {};
+    for (const outputName of outputNames) {
+      if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(outputName)) {
+        results[outputName] = null;
+        continue;
       }
 
-      // Convert Python objects to JS with proper dict handling
-      if (typeof result.toJs === 'function') {
-        return result.toJs({ dict_converter: Object.fromEntries });
+      try {
+        await py.runPythonAsync(`__output__ = __to_js_value__(${outputName})`);
+        const result = py.globals.get('__output__');
+
+        if (result === undefined || result === null || String(result) === 'None') {
+          results[outputName] = null;
+          continue;
+        }
+
+        if (typeof result.toJs === 'function') {
+          results[outputName] = result.toJs({ dict_converter: Object.fromEntries });
+        } else {
+          results[outputName] = result;
+        }
+      } catch (e) {
+        console.error(`Error converting output ${outputName}:`, e);
+        results[outputName] = null;
       }
-      return result;
-    } catch (e) {
-      console.error('Error converting output:', e);
-      return null;
     }
+
+    return results;
   }
 }

@@ -1,7 +1,7 @@
-import { Editor, getIndexAbove, getIndicesBetween, IndexKey, T, useEditor } from 'tldraw'
+import { getIndexAbove, IndexKey, T, useEditor, useValue } from 'tldraw'
 import CodeMirror from '@uiw/react-codemirror'
 import { python } from '@codemirror/lang-python'
-import { useState, useCallback, PointerEvent } from 'react'
+import { useState, useCallback, MouseEvent, PointerEvent } from 'react'
 import { Pyodide } from '@/pyodide'
 import { CodeIcon } from '../../components/icons/CodeIcon'
 import {
@@ -20,9 +20,12 @@ import {
 	ExecutionResult,
 	InfoValues,
 	InputValues,
+	CopyTextButton,
 	NodeComponentProps,
 	NodeDefinition,
 	NodeRow,
+	PortValueDropdown,
+	STOP_EXECUTION,
 	updateNode,
 } from './shared'
 
@@ -57,9 +60,9 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	getDefault(): CodeNode {
 		return {
 			type: 'code',
-			code: "",
+			code: '',
 			inputs: indexList([0]),
-			outputs: indexList([0]),
+			outputs: indexList([null]),
 			lastResult: null,
 		}
 	}
@@ -68,7 +71,7 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	getBodyHeightPx(shape: NodeShape, node: CodeNode) {
 		const inputRows = indexListLength(node.inputs)
 		const outputRows = indexListLength(node.outputs)
-		const maxRows = Math.max(inputRows, outputRows)
+		const maxRows = Math.max(inputRows, outputRows) + 1
 		const baseBodyHeight = NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
 		const overrideBodyHeight = Math.max(
 			0,
@@ -120,37 +123,39 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	async execute(shape: NodeShape, node: CodeNode, inputs: InputValues): Promise<ExecutionResult> {
 		const pyodide = Pyodide.getInstance()
 
-		// Build input variables: in_0, in_1, etc. (supports any value type)
+		// Build input variables: input, input2, input3...
 		const pyInputs: Record<string, unknown> = {}
 		const sortedInputKeys = Object.keys(node.inputs).sort()
 		sortedInputKeys.forEach((idx, i) => {
 			const portId = `input_${idx}`
 			const value = inputs[portId] ?? node.inputs[idx as IndexKey] ?? null
-			pyInputs[`in_${i}`] = value
+			pyInputs[getInputVariableName(i)] = value
 		})
 
 		const sortedOutputKeys = Object.keys(node.outputs).sort()
+		const outputNames = sortedOutputKeys.map((_idx, i) => getOutputVariableName(i))
 
 		try {
-			// Run the code and get the returned value (can be any type including DataFrame)
-			const returnValue = await pyodide.runWithIO(node.code, pyInputs)
+			// Run the code and read named outputs (output, output2, ...)
+			const namedResults = await pyodide.runWithIO(node.code, pyInputs, outputNames)
 
-			// Map the return value to outputs - first output gets the value
 			const result: ExecutionResult = {}
 			sortedOutputKeys.forEach((idx, i) => {
-				result[`output_${idx}`] = i === 0 ? returnValue : null
+				const outputName = getOutputVariableName(i)
+				result[`output_${idx}`] = namedResults[outputName] ?? null
 			})
 
-			// Update the node's stored outputs
 			const newOutputs: Record<IndexKey, unknown> = {}
 			sortedOutputKeys.forEach((idx, i) => {
-				newOutputs[idx as IndexKey] = i === 0 ? returnValue : null
+				const outputName = getOutputVariableName(i)
+				newOutputs[idx as IndexKey] = namedResults[outputName] ?? null
 			})
 
+			const firstOutputName = getOutputVariableName(0)
 			updateNode<CodeNode>(this.editor, shape, (n) => ({
 				...n,
 				outputs: newOutputs,
-				lastResult: returnValue,
+				lastResult: namedResults[firstOutputName] ?? null,
 			}), false)
 
 			return result
@@ -175,50 +180,6 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 		return result
 	}
 
-	// When a port is connected, ensure there's a spare empty port at the end
-	onPortConnect(shape: NodeShape, _node: CodeNode, portId: string): void {
-		if (portId.startsWith('input_')) {
-			const idx = portId.slice(6) as IndexKey
-			updateNode<CodeNode>(this.editor, shape, (node) => ({
-				...node,
-				inputs: ensureFinalEmptyItem(
-					this.editor,
-					shape,
-					{ ...node.inputs, [idx]: node.inputs[idx] ?? 0 },
-					'input',
-					{ removeUnused: true }
-				),
-			}))
-		} else if (portId.startsWith('output_')) {
-			const idx = portId.slice(7) as IndexKey
-			updateNode<CodeNode>(this.editor, shape, (node) => ({
-				...node,
-				outputs: ensureFinalEmptyItem(
-					this.editor,
-					shape,
-					{ ...node.outputs, [idx]: node.outputs[idx] ?? 0 },
-					'output',
-					{ removeUnused: true }
-				),
-			}))
-		}
-	}
-
-	// When a port is disconnected, clean up unused items
-	onPortDisconnect(shape: NodeShape, _node: CodeNode, portId: string): void {
-		if (portId.startsWith('input_')) {
-			updateNode<CodeNode>(this.editor, shape, (node) => ({
-				...node,
-				inputs: ensureFinalEmptyItem(this.editor, shape, node.inputs, 'input', { removeUnused: true }),
-			}))
-		} else if (portId.startsWith('output_')) {
-			updateNode<CodeNode>(this.editor, shape, (node) => ({
-				...node,
-				outputs: ensureFinalEmptyItem(this.editor, shape, node.outputs, 'output', { removeUnused: true }),
-			}))
-		}
-	}
-
 	Component = CodeNodeComponent
 }
 
@@ -226,9 +187,13 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 	const editor = useEditor()
 	const [output, setOutput] = useState<string | null>(null)
 	const [isRunning, setIsRunning] = useState(false)
+	const inputPortValues = useValue('code input port values', () => getNodeInputPortValues(editor, shape.id), [
+		editor,
+		shape.id,
+	])
 	const inputRows = indexListLength(node.inputs)
 	const outputRows = indexListLength(node.outputs)
-	const maxRows = Math.max(inputRows, outputRows)
+	const maxRows = Math.max(inputRows, outputRows) + 1
 	const baseBodyHeight = NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
 	const bodyHeight = Math.max(baseBodyHeight, shape.props.h || 0)
 	const consoleHeight = Math.max(72, Math.min(140, Math.round(bodyHeight * 0.24)))
@@ -238,11 +203,110 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 		event.stopPropagation()
 	}, [])
 
+	const onPointerDownHandled = useCallback((event: PointerEvent) => {
+		editor.markEventAsHandled(event)
+		event.stopPropagation()
+	}, [editor])
+
+	const onWheel = useCallback((event: React.WheelEvent) => {
+		event.stopPropagation()
+	}, [])
+
 	const handleCodeChange = (value: string) => {
 		updateNode<CodeNode>(editor, shape, (node) => ({
 			...node,
 			code: value,
 		}))
+	}
+
+	const handleAddInput = () => {
+		updateNode<CodeNode>(editor, shape, (current) => ({
+			...current,
+			inputs: appendCodeIoItem(current.inputs, null),
+		}), false)
+	}
+
+	const handleAddOutput = () => {
+		updateNode<CodeNode>(editor, shape, (current) => ({
+			...current,
+			outputs: appendCodeIoItem(current.outputs, null),
+		}), false)
+	}
+
+	const handleRemoveInput = (idx: IndexKey) => {
+		const entries = indexListEntries(node.inputs)
+		if (entries.length <= 1) return
+		if (idx === entries[0][0]) return
+
+		const removedPortId = `input_${idx}`
+		const connectionIds = getNodePortConnections(editor, shape.id)
+			.filter((connection) => connection.ownPortId === removedPortId)
+			.map((connection) => connection.connectionId)
+
+		if (connectionIds.length > 0) {
+			editor.deleteShapes(connectionIds)
+		}
+
+		updateNode<CodeNode>(editor, shape, (current) => {
+			const nextInputs = { ...current.inputs }
+			delete nextInputs[idx]
+			return {
+				...current,
+				inputs: nextInputs,
+			}
+		}, false)
+	}
+
+	const handleRemoveOutput = (idx: IndexKey) => {
+		const entries = indexListEntries(node.outputs)
+		if (entries.length <= 1) return
+		if (idx === entries[0][0]) return
+
+		const removedPortId = `output_${idx}`
+		const connectionIds = getNodePortConnections(editor, shape.id)
+			.filter((connection) => connection.ownPortId === removedPortId)
+			.map((connection) => connection.connectionId)
+
+		if (connectionIds.length > 0) {
+			editor.deleteShapes(connectionIds)
+		}
+
+		updateNode<CodeNode>(editor, shape, (current) => {
+			const nextOutputs = { ...current.outputs }
+			delete nextOutputs[idx]
+			return {
+				...current,
+				outputs: nextOutputs,
+			}
+		}, false)
+	}
+
+	const handleAddInputClick = (event: MouseEvent<HTMLButtonElement>) => {
+		event.preventDefault()
+		event.stopPropagation()
+		editor.markEventAsHandled(event)
+		handleAddInput()
+	}
+
+	const handleAddOutputClick = (event: MouseEvent<HTMLButtonElement>) => {
+		event.preventDefault()
+		event.stopPropagation()
+		editor.markEventAsHandled(event)
+		handleAddOutput()
+	}
+
+	const handleRemoveInputClick = (idx: IndexKey) => (event: MouseEvent<HTMLButtonElement>) => {
+		event.preventDefault()
+		event.stopPropagation()
+		editor.markEventAsHandled(event)
+		handleRemoveInput(idx)
+	}
+
+	const handleRemoveOutputClick = (idx: IndexKey) => (event: MouseEvent<HTMLButtonElement>) => {
+		event.preventDefault()
+		event.stopPropagation()
+		editor.markEventAsHandled(event)
+		handleRemoveOutput(idx)
 	}
 
 	const executePython = async () => {
@@ -259,30 +323,31 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			// Get input values from connected nodes
 			const inputPortValues = getNodeInputPortValues(editor, shape.id)
 
-			// Build input variables: in_0, in_1, etc. (supports any value type)
+			// Build input variables: input, input2, input3...
 			const pyInputs: Record<string, unknown> = {}
 			const sortedInputKeys = Object.keys(node.inputs).sort()
 			sortedInputKeys.forEach((idx, i) => {
 				const portId = `input_${idx}`
 				const portValue = inputPortValues[portId]
 				const value = portValue?.value ?? node.inputs[idx as IndexKey] ?? null
-				pyInputs[`in_${i}`] = value
+				pyInputs[getInputVariableName(i)] = value
 			})
 
-			// Run with inputs (result can be any type including DataFrame)
-			const result = await pyodide.runWithIO(node.code, pyInputs)
-
-			// Update node outputs with the result
 			const sortedOutputKeys = Object.keys(node.outputs).sort()
+			const outputNames = sortedOutputKeys.map((_idx, i) => getOutputVariableName(i))
+			const namedResults = await pyodide.runWithIO(node.code, pyInputs, outputNames)
+
 			const newOutputs: Record<IndexKey, unknown> = {}
 			sortedOutputKeys.forEach((idx, i) => {
-				newOutputs[idx as IndexKey] = i === 0 ? result : null
+				const outputName = getOutputVariableName(i)
+				newOutputs[idx as IndexKey] = namedResults[outputName] ?? null
 			})
 
+			const firstOutputName = getOutputVariableName(0)
 			updateNode<CodeNode>(editor, shape, (n) => ({
 				...n,
 				outputs: newOutputs,
-				lastResult: result,
+				lastResult: namedResults[firstOutputName] ?? null,
 			}), false)
 		} catch (error) {
 			setOutput(String(error))
@@ -296,20 +361,86 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			{/* Input/Output Ports Row */}
 			<div className="CodeNode-ports">
 				<div className="CodeNode-inputs">
-					{indexListEntries(node.inputs).map(([idx]) => (
+					{indexListEntries(node.inputs).map(([idx], rowIndex) => {
+						const isFirst = rowIndex === 0
+						const inputPortId = `input_${idx}`
+						const connectedInput = inputPortValues[inputPortId]
+						const previewInputValue =
+							connectedInput?.value === STOP_EXECUTION
+								? STOP_EXECUTION
+								: connectedInput?.value ?? node.inputs[idx as IndexKey] ?? null
+						return (
 						<NodeRow key={idx} className="CodeNode-port-row">
 							<Port shapeId={shape.id} portId={`input_${idx}`} />
-							<span className="CodeNode-port-label">in[{idx}]</span>
+							<span className="CodeNode-port-label">{getInputDisplayName(rowIndex)}</span>
+							<PortValueDropdown
+								title={`${getInputDisplayName(rowIndex)} value`}
+								value={previewInputValue}
+							/>
+							{!isFirst && (
+								<button
+									type="button"
+									className="CodeNode-inline-remove"
+									title="Remove input"
+									onPointerDown={onPointerDownHandled}
+									onClick={handleRemoveInputClick(idx)}
+									disabled={indexListLength(node.inputs) <= 1}
+								>
+									×
+								</button>
+							)}
 						</NodeRow>
-					))}
+						)
+					})}
+					<NodeRow className="CodeNode-port-row CodeNode-port-row--control">
+						<button
+							type="button"
+							className="CodeNode-add-io-button"
+							onPointerDown={onPointerDownHandled}
+							onClick={handleAddInputClick}
+						>
+							+ Add input
+						</button>
+					</NodeRow>
 				</div>
 				<div className="CodeNode-outputs">
-					{indexListEntries(node.outputs).map(([idx]) => (
+					{indexListEntries(node.outputs).map(([idx], rowIndex) => {
+						const isFirst = rowIndex === 0
+						const previewOutputValue = node.outputs[idx as IndexKey] ?? null
+						return (
 						<NodeRow key={idx} className="CodeNode-port-row CodeNode-port-row--output">
-							<span className="CodeNode-port-label">out[{idx}]</span>
+							{!isFirst && (
+								<button
+									type="button"
+									className="CodeNode-inline-remove"
+									title="Remove output"
+									onPointerDown={onPointerDownHandled}
+									onClick={handleRemoveOutputClick(idx)}
+									disabled={indexListLength(node.outputs) <= 1}
+								>
+									×
+								</button>
+							)}
+							<PortValueDropdown
+								title={`${getOutputDisplayName(rowIndex)} value`}
+								value={previewOutputValue}
+								align="right"
+							/>
+							<span className="CodeNode-port-label">{getOutputDisplayName(rowIndex)}</span>
 							<Port shapeId={shape.id} portId={`output_${idx}`} />
 						</NodeRow>
-					))}
+						)
+					})}
+					<NodeRow className="CodeNode-port-row CodeNode-port-row--output CodeNode-port-row--control">
+						<button
+							type="button"
+							className="CodeNode-add-io-button"
+							onPointerDown={onPointerDownHandled}
+							onClick={handleAddOutputClick}
+						>
+							+ Add output
+						</button>
+					</NodeRow>
 				</div>
 			</div>
 
@@ -318,10 +449,16 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				className="CodeNode-editor"
 				style={{ pointerEvents: 'all' }}
 				onKeyDown={(e) => e.stopPropagation()}
+				onWheelCapture={onWheel}
 			>
 				<div className="CodeNode-editor-header">
 					<span>python</span>
 					<div className="CodeNode-header-actions">
+						<CopyTextButton
+							title="Copy code"
+							getText={() => node.code}
+							className="CodeNode-copy-button"
+						/>
 						<button
 							onClick={() => setOutput(null)}
 							disabled={!output}
@@ -346,6 +483,7 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 					theme="dark"
 					extensions={[python()]}
 					onChange={handleCodeChange}
+					onWheelCapture={onWheel}
 					style={{ fontSize: '12px', pointerEvents: 'all' }}
 				/>
 			</div>
@@ -359,49 +497,48 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 					maxHeight: `${consoleHeight}px`,
 					minHeight: `${consoleHeight}px`,
 				}}
+				onWheelCapture={onWheel}
 			>
-				<div className="CodeNode-console-header">Console</div>
+				<div className="CodeNode-console-header">
+					<span>Console</span>
+					<CopyTextButton
+						title="Copy console output"
+						getText={() => output ?? ''}
+						className="CodeNode-copy-button"
+						disabled={!output}
+					/>
+				</div>
 				{output && <pre className="CodeNode-console-output">{output}</pre>}
 			</div>
 		</div>
 	)
 }
 
-function ensureFinalEmptyItem(
-	editor: Editor,
-	shape: NodeShape,
-	items: Record<IndexKey, number>,
-	portPrefix: 'input' | 'output',
-	{ removeUnused = false } = {}
-) {
-	const connections = getNodePortConnections(editor, shape.id)
-
-	let entriesToKeep = indexListEntries(items)
-	const connectedPortIds = new Set(connections.map((c) => c.ownPortId))
-
-	if (removeUnused) {
-		entriesToKeep = entriesToKeep.filter(([idx, value], i) => {
-			const portId = `${portPrefix}_${idx}`
-			return (
-				i === 0 || i === entriesToKeep.length - 1 || value !== 0 || connectedPortIds.has(portId)
-			)
-		})
-
-		if (entriesToKeep.length < 1) {
-			for (const index of getIndicesBetween(
-				entriesToKeep[entriesToKeep.length - 1]?.[0],
-				null,
-				1 - entriesToKeep.length
-			)) {
-				entriesToKeep.push([index, 0])
-			}
-		}
+function appendCodeIoItem(items: Record<IndexKey, unknown>, value: unknown) {
+	const entries = indexListEntries(items)
+	if (entries.length === 0) {
+		return indexList([value])
 	}
-
-	const lastEntry = entriesToKeep[entriesToKeep.length - 1]!
-	if (lastEntry[1] !== 0 || connectedPortIds.has(`${portPrefix}_${lastEntry[0]}`)) {
-		entriesToKeep.push([getIndexAbove(lastEntry[0]), 0])
+	const lastIndex = entries[entries.length - 1]?.[0]
+	const newIndex = getIndexAbove(lastIndex!)
+	return {
+		...items,
+		[newIndex]: value,
 	}
+}
 
-	return Object.fromEntries(entriesToKeep)
+function getInputDisplayName(index: number): string {
+	return index === 0 ? 'input' : `input${index + 1}`
+}
+
+function getOutputDisplayName(index: number): string {
+	return index === 0 ? 'output' : `output${index + 1}`
+}
+
+function getInputVariableName(index: number): string {
+	return index === 0 ? 'input' : `input${index + 1}`
+}
+
+function getOutputVariableName(index: number): string {
+	return index === 0 ? 'output' : `output${index + 1}`
 }
