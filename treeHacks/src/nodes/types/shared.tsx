@@ -1,5 +1,6 @@
 import classNames from 'classnames'
 import { KeyboardEvent, MouseEvent, PointerEvent, useCallback, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import {
 	Editor,
 	T,
@@ -442,7 +443,7 @@ export function PortRenameDialog({
 
 	if (!isOpen) return null
 
-	return (
+	return createPortal(
 		<div
 			className="NodeRenameDialog-backdrop"
 			onPointerDown={(event) => {
@@ -486,6 +487,8 @@ export function PortRenameDialog({
 				</div>
 			</div>
 		</div>
+		,
+		document.body
 	)
 }
 
