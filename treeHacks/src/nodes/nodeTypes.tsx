@@ -26,6 +26,7 @@ import { PlotNodeDefinition } from './types/PlotNode'
 import { GeminiNodeDefinition } from './types/GeminiNode'
 import { TextOutputNodeDefinition } from './types/TextOutputNode'
 import { NumberOutputNodeDefinition } from './types/NumberOutputNode'
+import { FileInputNodeDefinition } from './types/FileInputNode'
 
 /** All our node types */
 export const NodeDefinitions = {
@@ -33,6 +34,7 @@ export const NodeDefinitions = {
 	output: OutputNodeDefinition,
 	plot: PlotNodeDefinition,
 	gemini: GeminiNodeDefinition,
+	fileInput: FileInputNodeDefinition,
 	textOutput: TextOutputNodeDefinition,
 	numberOutput: NumberOutputNodeDefinition,
 	add: AddNodeDefinition,

@@ -534,15 +534,9 @@ async function runGemini(
 	editor: Editor,
 	namedInputs: Record<string, unknown>
 ): Promise<ExecutionResult> {
-	const inputEntries = Object.entries(namedInputs).filter(
-		([, value]) => value !== null && value !== undefined && String(value).trim() !== ''
-	)
-	const hasInput = inputEntries.length > 0
-	const inputText = hasInput
-		? inputEntries
-				.map(([name, value]) => `${name}: ${stringifyInput(value)}`)
-				.join('\n')
-		: ''
+	const preparedInputs = prepareGeminiRequestInputs(namedInputs)
+	const hasInput = preparedInputs.summaryLines.length > 0
+	const inputText = hasInput ? preparedInputs.summaryLines.join('\n') : ''
 	const promptText = node.prompt.trim() || 'Generate a concise response.'
 	const requestText = hasInput ? `${promptText}\n\nInputs:\n${inputText}` : promptText
 
@@ -554,7 +548,11 @@ async function runGemini(
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			credentials: 'include',
-			body: JSON.stringify({ message: requestText }),
+			body: JSON.stringify({
+				message: requestText,
+				prompt: promptText,
+				inputs: preparedInputs.apiInputs,
+			}),
 		})
 
 		if (!response.ok) {
@@ -665,6 +663,69 @@ function mapGeminiOutputs(outputValue: unknown, outputNames: string[]): Record<s
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+interface UploadedFileInputValue {
+	__type__: 'uploaded_file'
+	kind: 'image' | 'file'
+	name: string
+	mimeType: string
+	sizeBytes: number
+	dataBase64: string
+}
+
+function isUploadedFileInputValue(value: unknown): value is UploadedFileInputValue {
+	if (!isPlainObject(value)) return false
+	return (
+		value.__type__ === 'uploaded_file' &&
+		(typeof value.kind === 'string') &&
+		(typeof value.name === 'string') &&
+		(typeof value.mimeType === 'string') &&
+		(typeof value.dataBase64 === 'string')
+	)
+}
+
+function prepareGeminiRequestInputs(namedInputs: Record<string, unknown>) {
+	const summaryLines: string[] = []
+	const apiInputs: Array<{
+		type: 'image' | 'file'
+		name: string
+		mimeType: string
+		dataBase64: string
+	} | {
+		type: 'text'
+		name: string
+		value: string
+	}> = []
+
+	for (const [name, value] of Object.entries(namedInputs)) {
+		if (value === null || value === undefined) continue
+
+		if (isUploadedFileInputValue(value)) {
+			const sizeLabel = Number.isFinite(value.sizeBytes)
+				? `${(value.sizeBytes / 1024).toFixed(1)} KB`
+				: 'unknown size'
+			summaryLines.push(`${name}: [${value.kind}] ${value.name} (${value.mimeType}, ${sizeLabel})`)
+			apiInputs.push({
+				type: value.kind,
+				name: value.name,
+				mimeType: value.mimeType,
+				dataBase64: value.dataBase64,
+			})
+			continue
+		}
+
+		const textValue = stringifyInput(value)
+		if (textValue.trim() === '') continue
+		summaryLines.push(`${name}: ${textValue}`)
+		apiInputs.push({
+			type: 'text',
+			name,
+			value: textValue,
+		})
+	}
+
+	return { summaryLines, apiInputs }
 }
 
 function stringifyInput(value: unknown): string {

@@ -87,6 +87,7 @@ export function WorkflowToolbar() {
 			</TldrawUiMenuGroup>
 
 			<TldrawUiMenuGroup id="nodes">
+				<ToolbarItem tool="node-fileInput" />
 				<ToolbarItem tool="node-code" />
 				<ToolbarItem tool="node-textOutput" />
 				<ToolbarItem tool="node-numberOutput" />

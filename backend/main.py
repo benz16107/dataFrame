@@ -2,6 +2,7 @@ import os
 import ast
 import json
 import re
+import base64
 import uuid as uuid_lib
 from typing import Annotated, Any
 
@@ -9,7 +10,7 @@ from auth0_fastapi.auth.auth_client import AuthClient
 from auth0_fastapi.config import Auth0Config
 from auth0_fastapi.server.routes import register_auth_routes, router
 from dotenv import load_dotenv
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field as PydanticField
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
@@ -21,8 +22,10 @@ from starlette.middleware.sessions import SessionMiddleware
 # 1. NEW IMPORT FOR GEMINI
 try:
     from google import genai
+    from google.genai import types as genai_types
 except ImportError:
     genai = None
+    genai_types = None
 
 load_dotenv()
 
@@ -91,8 +94,137 @@ class Shape(SQLModel, table=True):
     canvas: Canvas = Relationship(back_populates="shapes")
 
 # 3. CHAT REQUEST MODEL
+class ChatInputItem(BaseModel):
+    type: str
+    name: str | None = None
+    mimeType: str | None = None
+    dataBase64: str | None = None
+    value: Any | None = None
+
+
 class ChatRequest(BaseModel):
-    message: str
+    message: str | None = None
+    prompt: str | None = None
+    inputs: list[ChatInputItem] = PydanticField(default_factory=list)
+
+
+GEMINI_ALLOWED_MIME_PREFIXES = (
+    "image/",
+    "text/",
+)
+GEMINI_ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/json",
+}
+GEMINI_MAX_INLINE_BYTES = int(os.getenv("GEMINI_MAX_INLINE_BYTES", str(8 * 1024 * 1024)))
+
+
+def _stringify_input_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    try:
+        return json.dumps(value)
+    except Exception:
+        return str(value)
+
+
+def _build_gemini_contents(request: ChatRequest) -> str | list[Any]:
+    prompt_text = (request.prompt or request.message or "").strip()
+    if not prompt_text:
+        raise HTTPException(status_code=400, detail="Missing prompt/message")
+
+    if not request.inputs:
+        return prompt_text
+
+    has_media_inputs = any((item.type or "").strip().lower() in {"image", "file"} for item in request.inputs)
+    if has_media_inputs and genai_types is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Gemini file/image input is not available with current SDK. "
+                "Upgrade google-genai to a version that supports google.genai.types."
+            ),
+        )
+
+    sdk_parts: list[Any] = []
+    raw_parts: list[dict[str, Any]] = [{"text": prompt_text}]
+
+    if genai_types is not None:
+        sdk_parts.append(genai_types.Part.from_text(text=prompt_text))
+
+    has_multimodal_part = False
+    sdk_has_multimodal_part = False
+
+    for item in request.inputs:
+        item_type = (item.type or "").strip().lower()
+
+        if item_type in {"image", "file"}:
+            if not item.mimeType or not item.dataBase64:
+                continue
+
+            mime_type = item.mimeType.strip().lower()
+            if not (
+                mime_type in GEMINI_ALLOWED_MIME_TYPES
+                or any(mime_type.startswith(prefix) for prefix in GEMINI_ALLOWED_MIME_PREFIXES)
+            ):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unsupported file type for Gemini: {item.mimeType}",
+                )
+
+            raw_parts.append(
+                {
+                    "inline_data": {
+                        "mime_type": mime_type,
+                        "data": item.dataBase64,
+                    }
+                }
+            )
+
+            if genai_types is not None:
+                try:
+                    decoded = base64.b64decode(item.dataBase64, validate=True)
+                    if len(decoded) > GEMINI_MAX_INLINE_BYTES:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                f"File too large for Gemini inline upload: {len(decoded)} bytes "
+                                f"(max {GEMINI_MAX_INLINE_BYTES} bytes)."
+                            ),
+                        )
+                    sdk_parts.append(
+                        genai_types.Part.from_bytes(data=decoded, mime_type=mime_type)
+                    )
+                    sdk_has_multimodal_part = True
+                except HTTPException:
+                    raise
+                except Exception:
+                    raise HTTPException(status_code=400, detail=f"Invalid base64 payload for {item.name or 'file'}")
+
+            has_multimodal_part = True
+            continue
+
+        if item_type == "text":
+            text_value = _stringify_input_value(item.value).strip()
+            if not text_value:
+                continue
+            label = item.name or "input"
+            text_part = f"{label}: {text_value}"
+            raw_parts.append({"text": text_part})
+            if genai_types is not None:
+                sdk_parts.append(genai_types.Part.from_text(text=text_part))
+
+    if not has_multimodal_part:
+        return request.message or prompt_text
+
+    if genai_types is not None and sdk_has_multimodal_part:
+        return [genai_types.Content(role="user", parts=sdk_parts)]
+
+    return [{"role": "user", "parts": raw_parts}]
 
 
 def _strip_code_fence(text: str) -> str:
@@ -342,9 +474,10 @@ async def chat_with_ai(request: ChatRequest):
         )
 
     try:
+        contents = _build_gemini_contents(request)
         response = client.models.generate_content(
             model=GEMINI_MODEL,
-            contents=request.message,
+            contents=contents,
             config={
                 "system_instruction": GEMINI_SYSTEM_PROMPT
             }
@@ -355,6 +488,9 @@ async def chat_with_ai(request: ChatRequest):
     except Exception as e:
         raw_error = str(e)
         print(f"\n🔥 GEMINI CRASH REASON: {raw_error}\n")
+
+        if isinstance(e, HTTPException):
+            raise e
 
         error_upper = raw_error.upper()
         is_quota_error = "RESOURCE_EXHAUSTED" in error_upper or "QUOTA" in error_upper
@@ -369,7 +505,7 @@ async def chat_with_ai(request: ChatRequest):
             headers = {"Retry-After": str(retry_after)} if retry_after else None
             raise HTTPException(status_code=429, detail=detail, headers=headers)
 
-        raise HTTPException(status_code=500, detail="Gemini request failed.")
+        raise HTTPException(status_code=500, detail=f"Gemini request failed: {raw_error}")
 
 
 def get_owned_canvas_or_404(session: Session, canvas_id: str, owner_sub: str) -> Canvas:

@@ -154,6 +154,10 @@ body {
 	--node-type-border: #d59d79;
 }
 
+.NodeShape_type-fileInput {
+	--node-type-border: #93b9f4;
+}
+
 .NodeShape input,
 .NodeShape textarea,
 .NodeShape pre,
@@ -710,7 +714,8 @@ body {
 	position: fixed;
 	inset: 0;
 	z-index: 120;
-	background: rgba(15, 23, 42, 0.28);
+	background: rgba(15, 23, 42, 0.42);
+	backdrop-filter: blur(2px);
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -720,8 +725,9 @@ body {
 .NodeRenameDialog {
 	width: min(320px, 92vw);
 	border-radius: 12px;
-	border: 1px solid var(--tl-color-muted-2);
-	background: var(--tl-color-panel);
+	border: 1px solid rgba(15, 23, 42, 0.18);
+	background: #ffffff;
+	opacity: 1;
 	box-shadow: 0 18px 38px rgba(15, 23, 42, 0.26);
 	padding: 12px;
 	display: flex;
@@ -733,15 +739,15 @@ body {
 .NodeRenameDialog-title {
 	font-size: 12px;
 	font-weight: 600;
-	color: var(--tl-color-text-1);
+	color: #0f172a;
 }
 
 .NodeRenameDialog-input {
 	width: 100%;
-	border: 1px solid var(--tl-color-muted-2);
+	border: 1px solid rgba(15, 23, 42, 0.2);
 	border-radius: 8px;
-	background: var(--tl-color-panel);
-	color: var(--tl-color-text-1);
+	background: #ffffff;
+	color: #0f172a;
 	padding: 8px 10px;
 	font-size: 12px;
 	line-height: 1.2;
@@ -761,7 +767,7 @@ body {
 
 .NodeRenameDialog-btn {
 	border-radius: 8px;
-	border: 1px solid var(--tl-color-muted-2);
+	border: 1px solid rgba(15, 23, 42, 0.18);
 	padding: 6px 10px;
 	font-size: 11px;
 	line-height: 1.2;
@@ -770,8 +776,8 @@ body {
 }
 
 .NodeRenameDialog-btn--ghost {
-	background: var(--tl-color-panel);
-	color: var(--tl-color-text-2);
+	background: #f8fafc;
+	color: #334155;
 }
 
 .NodeRenameDialog-btn--ghost:hover {
@@ -1081,6 +1087,89 @@ body {
 	font-size: 14px;
 	color: var(--tl-color-text-3);
 	font-style: italic;
+}
+
+/* FileInputNode styles */
+.FileInputNode {
+	display: flex;
+	flex-direction: column;
+	gap: var(--tl-space-2);
+	padding: 0 var(--tl-space-3) var(--tl-space-2);
+	min-height: 0;
+}
+
+.FileInputNode-hiddenInput {
+	display: none;
+}
+
+.FileInputNode-row {
+	padding: 0;
+	gap: var(--tl-space-2);
+	height: auto;
+}
+
+.FileInputNode-uploadButton,
+.FileInputNode-clearButton {
+	border: 1px solid var(--tl-color-muted-2);
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-2);
+	border-radius: var(--tl-radius-2);
+	padding: 6px 10px;
+	font-size: 11px;
+	line-height: 1.2;
+	font-weight: 600;
+	cursor: pointer;
+
+	[data-state='select.idle'] & {
+		pointer-events: all;
+	}
+}
+
+.FileInputNode-uploadButton:hover,
+.FileInputNode-clearButton:hover {
+	border-color: var(--tl-color-selected);
+	color: var(--tl-color-text-1);
+}
+
+.FileInputNode-uploadButton:disabled,
+.FileInputNode-clearButton:disabled {
+	opacity: 0.6;
+	cursor: not-allowed;
+}
+
+.FileInputNode-meta {
+	border: 1px solid var(--tl-color-muted-2);
+	border-radius: var(--tl-radius-2);
+	background: var(--tl-color-muted-0);
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-height: 44px;
+
+	[data-state='select.idle'] & {
+		pointer-events: all;
+	}
+}
+
+.FileInputNode-fileName {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--tl-color-text-1);
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.FileInputNode-fileInfo,
+.FileInputNode-placeholder {
+	font-size: 11px;
+	color: var(--tl-color-text-2);
+}
+
+.FileInputNode-error {
+	font-size: 10px;
+	color: #b91c1c;
 }
 
 /* PlotNode styles */
