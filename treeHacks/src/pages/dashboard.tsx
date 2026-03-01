@@ -11,6 +11,12 @@ const statusStyles = [
   "bg-emerald-200/70 text-emerald-900 border-emerald-400/50",
 ];
 
+const sortOptions: Array<{ value: SortOption; label: string }> = [
+  { value: "lastOpened", label: "Last opened" },
+  { value: "lastModified", label: "Last modified" },
+  { value: "dateCreated", label: "Date created" },
+];
+
 function formatUpdatedAt(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "recently";
@@ -24,6 +30,7 @@ export default function DashboardPage() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("lastOpened");
+  const [isSortMenuOpen, setIsSortMenuOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -126,6 +133,19 @@ export default function DashboardPage() {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!isSortMenuOpen) return;
+
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest(".dash-sort-dropdown")) return;
+      setIsSortMenuOpen(false);
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    return () => document.removeEventListener("mousedown", handlePointerDown);
+  }, [isSortMenuOpen]);
 
   const normalizeName = (value: string) => value.trim().toLowerCase();
 
@@ -360,7 +380,7 @@ export default function DashboardPage() {
       <div className="dash-glow" />
       <header className="dash-header">
         <div className="dash-brand">
-          <div className="dash-mark">TH</div>
+          <div className="dash-mark">Df</div>
           <div>
             <h1 className="dash-title">Dataframe</h1>
           </div>
@@ -389,11 +409,11 @@ export default function DashboardPage() {
       <section className="dash-hero">
         <div>
           <h2 className="dash-hero-title">
-            Build, revisit, and share the canvases that shape your project.
+            Build and run visual data workflows for real-time analysis.
           </h2>
           <p className="dash-hero-sub">
-            Everything tied to your account lives here. Jump back into a
-            previous canvas or start a fresh one in seconds.
+            Reopen saved canvases, refine node pipelines, and spin up new
+            workflows for seismic and geospatial analysis in seconds.
           </p>
           <div className="dash-hero-cta">
             <button onClick={openCreateModal} className="dash-btn dash-btn-primary" disabled={isCreating}>
@@ -424,16 +444,36 @@ export default function DashboardPage() {
         <div className="dash-section-header">
           <h3>Canvases</h3>
           <div className="dash-section-controls">
-            <select
-              className="dash-sort"
-              value={sortBy}
-              onChange={(event) => setSortBy(event.target.value as SortOption)}
-              aria-label="Sort canvases"
-            >
-              <option value="lastOpened">Last opened</option>
-              <option value="lastModified">Last modified</option>
-              <option value="dateCreated">Date created</option>
-            </select>
+            <div className="dash-dropdown dash-sort-dropdown">
+              <button
+                className="dash-sort dash-btn-dropdown"
+                onClick={() => setIsSortMenuOpen((prev) => !prev)}
+                aria-expanded={isSortMenuOpen}
+                aria-haspopup="menu"
+                aria-label="Sort canvases"
+                type="button"
+              >
+                {sortOptions.find((option) => option.value === sortBy)?.label ?? "Last opened"}
+              </button>
+              {isSortMenuOpen ? (
+                <div className="dash-dropdown-menu" role="menu">
+                  {sortOptions.map((option) => (
+                    <button
+                      key={option.value}
+                      className={`dash-dropdown-item ${sortBy === option.value ? "is-active" : ""}`}
+                      role="menuitemradio"
+                      aria-checked={sortBy === option.value}
+                      onClick={() => {
+                        setSortBy(option.value);
+                        setIsSortMenuOpen(false);
+                      }}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
             <input
               className="dash-search"
               value={searchQuery}

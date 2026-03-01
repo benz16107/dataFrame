@@ -109,6 +109,16 @@ def _safe_frontend_path(next_path: str, fallback: str) -> str:
         return fallback
     return next_path
 
+
+@app.middleware("http")
+async def redirect_declined_auth_to_dashboard(request: Request, call_next):
+    if request.url.path == "/auth/callback":
+        auth_error = request.query_params.get("error")
+        if auth_error:
+            return RedirectResponse(url=f"{frontend_base_url}/dashboard")
+
+    return await call_next(request)
+
 session_secret = os.getenv("SESSION_SECRET")
 if not session_secret:
     raise RuntimeError("Missing SESSION_SECRET in environment variables.")
