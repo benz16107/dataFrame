@@ -218,7 +218,7 @@ function NodeShape({ shape }: { shape: NodeShape }) {
 
 	return (
 		<HTMLContainer
-			className={classNames('NodeShape', {
+			className={classNames('NodeShape', `NodeShape_type-${shape.props.node.type}`, {
 				NodeShape_executing: isExecuting,
 			})}
 			onPointerDownCapture={handleSelectablePointerCapture}
@@ -233,6 +233,7 @@ function NodeShape({ shape }: { shape: NodeShape }) {
 			}}
 		>
 			<div className="NodeShape-heading">
+				<div className="NodeShape-typeDot" aria-hidden="true" />
 				<div className="NodeShape-label">{nodeDefinition.heading ?? nodeDefinition.title}</div>
 				{output !== undefined && (
 					<>

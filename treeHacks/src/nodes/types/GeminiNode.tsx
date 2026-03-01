@@ -21,6 +21,7 @@ import {
 	InputValues,
 	NodeComponentProps,
 	NodeDefinition,
+	PortRenameDialog,
 	PortValueDropdown,
 	STOP_EXECUTION,
 	updateNode,
@@ -34,6 +35,8 @@ export const GeminiNode = T.object({
 	prompt: T.string,
 	inputs: T.dict(T.indexKey, T.any),
 	outputs: T.dict(T.indexKey, T.any),
+	inputLabels: T.dict(T.indexKey, T.string),
+	outputLabels: T.dict(T.indexKey, T.string),
 	lastInput: T.string.nullable(),
 	lastPrompt: T.string.nullable(),
 	lastRequest: T.string.nullable(),
@@ -56,6 +59,8 @@ export class GeminiNodeDefinition extends NodeDefinition<GeminiNode> {
 			prompt: '',
 			inputs: indexList([null]),
 			outputs: indexList([null]),
+			inputLabels: {},
+			outputLabels: {},
 			lastInput: null,
 			lastPrompt: null,
 			lastRequest: null,
@@ -142,6 +147,12 @@ export class GeminiNodeDefinition extends NodeDefinition<GeminiNode> {
 export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNode>) {
 	const editor = useEditor()
 	const [isRunning, setIsRunning] = useState(false)
+	const [renameTarget, setRenameTarget] = useState<{
+		kind: 'input' | 'output'
+		idx: IndexKey
+		rowIndex: number
+	} | null>(null)
+	const [renameValue, setRenameValue] = useState('')
 
 	const stopPointer = useCallback((event: React.PointerEvent) => {
 		event.stopPropagation()
@@ -229,8 +240,10 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 
 			updateNode<GeminiNode>(editor, shape, (current) => {
 				const nextInputs = { ...current.inputs }
+				const nextInputLabels = { ...current.inputLabels }
 				delete nextInputs[idx]
-				return { ...current, inputs: nextInputs }
+				delete nextInputLabels[idx]
+				return { ...current, inputs: nextInputs, inputLabels: nextInputLabels }
 			}, false)
 		},
 		[editor, node.inputs, shape]
@@ -250,12 +263,57 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 
 			updateNode<GeminiNode>(editor, shape, (current) => {
 				const nextOutputs = { ...current.outputs }
+				const nextOutputLabels = { ...current.outputLabels }
 				delete nextOutputs[idx]
-				return { ...current, outputs: nextOutputs }
+				delete nextOutputLabels[idx]
+				return { ...current, outputs: nextOutputs, outputLabels: nextOutputLabels }
 			}, false)
 		},
 		[editor, node.outputs, shape]
 	)
+
+	const openRenameDialog = useCallback(
+		(kind: 'input' | 'output', idx: IndexKey, rowIndex: number) => {
+			const defaultName = kind === 'input' ? getInputDisplayName(rowIndex) : getOutputDisplayName(rowIndex)
+			const labels = kind === 'input' ? node.inputLabels : node.outputLabels
+			setRenameValue((labels[idx] ?? defaultName).trim())
+			setRenameTarget({ kind, idx, rowIndex })
+		},
+		[node.inputLabels, node.outputLabels]
+	)
+
+	const closeRenameDialog = useCallback(() => {
+		setRenameTarget(null)
+		setRenameValue('')
+	}, [])
+
+	const saveRenameDialog = useCallback(() => {
+		if (!renameTarget) return
+
+		const trimmedName = renameValue.trim()
+		const { kind, idx } = renameTarget
+		updateNode<GeminiNode>(editor, shape, (current) => {
+			if (kind === 'input') {
+				const nextInputLabels = { ...current.inputLabels }
+				if (trimmedName.length === 0) {
+					delete nextInputLabels[idx]
+				} else {
+					nextInputLabels[idx] = trimmedName
+				}
+				return { ...current, inputLabels: nextInputLabels }
+			}
+
+			const nextOutputLabels = { ...current.outputLabels }
+			if (trimmedName.length === 0) {
+				delete nextOutputLabels[idx]
+			} else {
+				nextOutputLabels[idx] = trimmedName
+			}
+			return { ...current, outputLabels: nextOutputLabels }
+		}, false)
+
+		closeRenameDialog()
+	}, [closeRenameDialog, editor, renameTarget, renameValue, shape])
 
 	const handleClear = useCallback(() => {
 		const resetOutputs = Object.fromEntries(
@@ -285,6 +343,7 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 						{indexListEntries(node.inputs).map(([idx], rowIndex) => {
 							const isFirst = rowIndex === 0
 							const inputPortId = `input_${idx}`
+							const inputLabel = getCustomPortDisplayName(node.inputLabels, idx, rowIndex, 'input')
 							const connectedInput = inputPortValues[inputPortId]
 							const previewInputValue =
 								connectedInput?.value === STOP_EXECUTION
@@ -293,9 +352,18 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 							return (
 								<div key={idx} className="GeminiNodeSimple-portRow">
 									<Port shapeId={shape.id} portId={`input_${idx}`} />
-									<span className="GeminiNodeSimple-portLabel">{getInputDisplayName(rowIndex)}</span>
+									<span className="GeminiNodeSimple-portLabel">{inputLabel}</span>
+									<button
+										type="button"
+										className="CodeNode-inline-rename"
+										onPointerDown={stopPointerHandled}
+										onClick={() => openRenameDialog('input', idx, rowIndex)}
+										title={`Rename ${inputLabel}`}
+									>
+										✎
+									</button>
 									<PortValueDropdown
-										title={`${getInputDisplayName(rowIndex)} value`}
+										title={`${inputLabel} value`}
 										value={previewInputValue}
 									/>
 									{!isFirst && (
@@ -327,6 +395,7 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 					<div className="GeminiNodeSimple-outputs">
 						{indexListEntries(node.outputs).map(([idx], rowIndex) => {
 							const isFirst = rowIndex === 0
+							const outputLabel = getCustomPortDisplayName(node.outputLabels, idx, rowIndex, 'output')
 							const previewOutputValue = node.outputs[idx as IndexKey] ?? null
 							return (
 								<div key={idx} className="GeminiNodeSimple-portRow GeminiNodeSimple-portRow--output">
@@ -342,11 +411,20 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 										</button>
 									)}
 									<PortValueDropdown
-										title={`${getOutputDisplayName(rowIndex)} value`}
+										title={`${outputLabel} value`}
 										value={previewOutputValue}
 										align="right"
 									/>
-									<span className="GeminiNodeSimple-portLabel">{getOutputDisplayName(rowIndex)}</span>
+									<button
+										type="button"
+										className="CodeNode-inline-rename"
+										onPointerDown={stopPointerHandled}
+										onClick={() => openRenameDialog('output', idx, rowIndex)}
+										title={`Rename ${outputLabel}`}
+									>
+										✎
+									</button>
+									<span className="GeminiNodeSimple-portLabel">{outputLabel}</span>
 									<Port shapeId={shape.id} portId={`output_${idx}`} />
 								</div>
 							)
@@ -364,16 +442,17 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 					</div>
 				</div>
 
-				<div className="GeminiNodeSimple-card" onPointerDown={stopPointer}>
-					<div className="GeminiNodeSimple-labelRow">
+				<div className="GeminiNodeSimple-card CodeNode-ai-assist" onPointerDown={stopPointer}>
+					<div className="GeminiNodeSimple-labelRow CodeNode-ai-header">
 						<div className="GeminiNodeSimple-label">Prompt</div>
 						<CopyTextButton
 							title="Copy prompt"
 							getText={() => node.prompt}
+							className="CodeNode-copy-button"
 						/>
 					</div>
 					<textarea
-						className="GeminiNodeSimple-prompt"
+						className="GeminiNodeSimple-prompt CodeNode-ai-prompt"
 						value={node.prompt}
 						onChange={(event) =>
 							updateNode<GeminiNode>(editor, shape, (n) => ({
@@ -388,10 +467,10 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 					/>
 				</div>
 
-				<div className="GeminiNodeSimple-actions" onPointerDown={stopPointer}>
+				<div className="GeminiNodeSimple-actions CodeNode-header-actions" onPointerDown={stopPointer}>
 						<button
 							type="button"
-							className="GeminiNodeSimple-btn GeminiNodeSimple-btn--secondary"
+							className="CodeNode-clear-button"
 							onClick={handleClear}
 							onPointerDown={stopPointer}
 							disabled={isRunning}
@@ -400,7 +479,7 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 						</button>
 						<button
 							type="button"
-							className="GeminiNodeSimple-btn GeminiNodeSimple-btn--primary"
+							className="CodeNode-run-button"
 							onClick={handleRun}
 							onPointerDown={stopPointer}
 							disabled={isRunning}
@@ -409,16 +488,17 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 						</button>
 				</div>
 
-				<div className="GeminiNodeSimple-panel">
-					<div className="GeminiNodeSimple-panelTitle">
+				<div className="GeminiNodeSimple-panel CodeNode-console">
+					<div className="GeminiNodeSimple-panelTitle CodeNode-console-header">
 						<span>Response</span>
 						<CopyTextButton
 							title="Copy response"
 							getText={() => responseText}
+							className="CodeNode-copy-button"
 						/>
 					</div>
 					<div
-						className="GeminiNodeSimple-panelBody"
+						className="GeminiNodeSimple-panelBody CodeNode-console-output"
 						onPointerDownCapture={stopPointerHandled}
 						onMouseDownCapture={stopMouseHandled}
 						onWheelCapture={stopWheel}
@@ -426,6 +506,23 @@ export function GeminiNodeComponent({ shape, node }: NodeComponentProps<GeminiNo
 						{responseText}
 					</div>
 				</div>
+
+				<PortRenameDialog
+					isOpen={renameTarget !== null}
+					title={
+						renameTarget
+							? `Rename ${
+								renameTarget.kind === 'input'
+									? getInputDisplayName(renameTarget.rowIndex)
+									: getOutputDisplayName(renameTarget.rowIndex)
+							}`
+							: 'Rename port'
+					}
+					value={renameValue}
+					onChange={setRenameValue}
+					onCancel={closeRenameDialog}
+					onSave={saveRenameDialog}
+				/>
 			</div>
 		</div>
 	)
@@ -729,4 +826,15 @@ function getInputVariableName(index: number): string {
 
 function getOutputVariableName(index: number): string {
 	return index === 0 ? 'output' : `output${index + 1}`
+}
+
+function getCustomPortDisplayName(
+	labels: Record<IndexKey, string>,
+	idx: IndexKey,
+	index: number,
+	kind: 'input' | 'output'
+): string {
+	const customLabel = labels[idx]?.trim()
+	if (customLabel) return customLabel
+	return kind === 'input' ? getInputDisplayName(index) : getOutputDisplayName(index)
 }
