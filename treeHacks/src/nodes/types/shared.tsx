@@ -18,7 +18,8 @@ import { getNodeInputPortValues } from '../nodePorts'
 import { NodeShape } from '../NodeShapeUtil'
 import { NodeType } from '../nodeTypes'
 
-export type WorkflowValue = number
+// WorkflowValue can be any JSON-serializable value (numbers, strings, arrays, objects, DataFrames)
+export type WorkflowValue = unknown
 
 /**
  * A special value that can be returned from a node to indicate that execution should stop.
@@ -157,6 +158,10 @@ export function NodeInputRow({
 		inputRef.current?.focus()
 	}
 
+	// Get display value - convert to number if possible
+	const displayValue = typeof valueFromPort === 'number' ? valueFromPort :
+		(valueFromPort != null ? 0 : (pendingValue ?? value))
+
 	return (
 		<NodeRow className="NodeInputRow">
 			<Port shapeId={shapeId} portId={portId} />
@@ -168,7 +173,7 @@ export function NodeInputRow({
 					type="text"
 					inputMode="decimal"
 					disabled={valueFromPort != null}
-					value={valueFromPort ?? pendingValue ?? value}
+					value={displayValue}
 					onChange={(e) => {
 						setPendingValue(e.currentTarget.value)
 						const asNumber = Number(e.currentTarget.value.trim())
@@ -245,12 +250,29 @@ function formatNumber(value: number): string {
 /**
  * A value within a node. If the value is STOP_EXECUTION, a placeholder is shown instead.
  */
-export function NodeValue({ value }: { value: number | STOP_EXECUTION }) {
+export function NodeValue({ value }: { value: WorkflowValue | STOP_EXECUTION }) {
 	if (value === STOP_EXECUTION) {
 		return <div className="NodeValue_placeholder" />
 	}
 
-	return formatNumber(value)
+	if (typeof value === 'number') {
+		return <>{formatNumber(value)}</>
+	}
+
+	if (value === null || value === undefined) {
+		return <div className="NodeValue_placeholder" />
+	}
+
+	// For non-numbers, show a simplified representation
+	if (typeof value === 'object') {
+		const obj = value as Record<string, unknown>
+		if (obj.__type__ === 'dataframe') {
+			return <>DataFrame</>
+		}
+		return <>Object</>
+	}
+
+	return <>{String(value)}</>
 }
 
 export function areAnyInputsOutOfDate(inputs: InfoValues): boolean {

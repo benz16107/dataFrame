@@ -24,7 +24,7 @@ export class Pyodide {
   async init() {
     if (!this.pyodide) {
       this.pyodide = await loadPyodide({
-        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/", // The version that works for you!
+        indexURL: "https://cdn.jsdelivr.net/pyodide/v0.29.3/full/",
         stdout: (msg) => {
           if (this.outputCallback) this.outputCallback(msg);
         },
@@ -32,6 +32,8 @@ export class Pyodide {
           if (this.outputCallback) this.outputCallback(msg);
         }
       });
+      // Load pandas and numpy
+      await this.pyodide.loadPackage(['pandas', 'numpy']);
     }
     return this.pyodide;
   }
@@ -66,12 +68,49 @@ export class Pyodide {
   async runWithIO(code, inputs) {
     const py = await this.init();
 
-    // Set input variables in global namespace
+    // Setup helper functions for DataFrame conversion
+    await py.runPythonAsync(`
+import pandas as pd
+import numpy as np
+
+def __to_js_value__(val):
+    """Convert Python value to JS-compatible format"""
+    if isinstance(val, pd.DataFrame):
+        return {
+            '__type__': 'dataframe',
+            'columns': val.columns.tolist(),
+            'data': val.values.tolist(),
+            'index': val.index.tolist()
+        }
+    elif isinstance(val, pd.Series):
+        return {
+            '__type__': 'series',
+            'data': val.tolist(),
+            'name': val.name
+        }
+    elif isinstance(val, np.ndarray):
+        return val.tolist()
+    elif hasattr(val, 'tolist'):
+        return val.tolist()
+    return val
+
+def __from_js_value__(val):
+    """Convert JS value back to Python"""
+    if isinstance(val, dict):
+        if val.get('__type__') == 'dataframe':
+            return pd.DataFrame(val['data'], columns=val.get('columns'), index=val.get('index'))
+        elif val.get('__type__') == 'series':
+            return pd.Series(val['data'], name=val.get('name'))
+    return val
+`);
+
+    // Set input variables in global namespace (converting from JS format)
     for (const [name, value] of Object.entries(inputs)) {
-      py.globals.set(name, value);
+      py.globals.set('__temp__', py.toPy(value));
+      await py.runPythonAsync(`${name} = __from_js_value__(__temp__)`);
     }
 
-    // Clear any previous output by running Python code
+    // Clear any previous output
     await py.runPythonAsync('output = None');
 
     // Run the user code
@@ -82,18 +121,22 @@ export class Pyodide {
       throw error;
     }
 
-    // Get the output variable
+    // Get and convert the output variable
     try {
-      const result = py.globals.get('output');
+      await py.runPythonAsync('__output__ = __to_js_value__(output)');
+      const result = py.globals.get('__output__');
+
       if (result === undefined || result === null || String(result) === 'None') {
         return null;
       }
-      // Convert Python objects to JS
+
+      // Convert Python objects to JS with proper dict handling
       if (typeof result.toJs === 'function') {
-        return result.toJs();
+        return result.toJs({ dict_converter: Object.fromEntries });
       }
       return result;
-    } catch {
+    } catch (e) {
+      console.error('Error converting output:', e);
       return null;
     }
   }

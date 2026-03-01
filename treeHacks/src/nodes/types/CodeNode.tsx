@@ -42,9 +42,9 @@ export type CodeNode = T.TypeOf<typeof CodeNode>
 export const CodeNode = T.object({
 	type: T.literal('code'),
 	code: T.string,
-	inputs: T.dict(T.indexKey, T.number),
-	outputs: T.dict(T.indexKey, T.number),
-	lastResult: T.number.nullable(),
+	inputs: T.dict(T.indexKey, T.any),
+	outputs: T.dict(T.indexKey, T.any),
+	lastResult: T.any.nullable(),
 })
 
 export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
@@ -120,69 +120,45 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	async execute(shape: NodeShape, node: CodeNode, inputs: InputValues): Promise<ExecutionResult> {
 		const pyodide = Pyodide.getInstance()
 
-		// Build input variables: in_0, in_1, etc.
-		const pyInputs: Record<string, number> = {}
+		// Build input variables: in_0, in_1, etc. (supports any value type)
+		const pyInputs: Record<string, unknown> = {}
 		const sortedInputKeys = Object.keys(node.inputs).sort()
 		sortedInputKeys.forEach((idx, i) => {
 			const portId = `input_${idx}`
-			const value = inputs[portId] ?? node.inputs[idx as IndexKey] ?? 0
+			const value = inputs[portId] ?? node.inputs[idx as IndexKey] ?? null
 			pyInputs[`in_${i}`] = value
 		})
 
 		const sortedOutputKeys = Object.keys(node.outputs).sort()
 
 		try {
-			// Run the code and get the returned value
+			// Run the code and get the returned value (can be any type including DataFrame)
 			const returnValue = await pyodide.runWithIO(node.code, pyInputs)
 
-			// Map the return value to outputs
+			// Map the return value to outputs - first output gets the value
 			const result: ExecutionResult = {}
+			sortedOutputKeys.forEach((idx, i) => {
+				result[`output_${idx}`] = i === 0 ? returnValue : null
+			})
 
-			if (returnValue === null || returnValue === undefined) {
-				// No return value - all outputs are 0
-				sortedOutputKeys.forEach((idx) => {
-					result[`output_${idx}`] = 0
-				})
-			} else if (typeof returnValue === 'number') {
-				// Single number - goes to first output
-				sortedOutputKeys.forEach((idx, i) => {
-					result[`output_${idx}`] = i === 0 ? returnValue : 0
-				})
-			} else if (Array.isArray(returnValue)) {
-				// Array/tuple - map to outputs by index
-				sortedOutputKeys.forEach((idx, i) => {
-					const value = returnValue[i]
-					result[`output_${idx}`] = typeof value === 'number' ? value : 0
-				})
-			} else if (typeof returnValue === 'object') {
-				// Dict - map by key (out_0, out_1, etc.)
-				sortedOutputKeys.forEach((idx, i) => {
-					const key = `out_${i}`
-					const value = returnValue[key]
-					result[`output_${idx}`] = typeof value === 'number' ? value : 0
-				})
-			} else {
-				// Try to convert to number
-				const numValue = Number(returnValue)
-				sortedOutputKeys.forEach((idx, i) => {
-					result[`output_${idx}`] = i === 0 && !isNaN(numValue) ? numValue : 0
-				})
-			}
+			// Update the node's stored outputs
+			const newOutputs: Record<IndexKey, unknown> = {}
+			sortedOutputKeys.forEach((idx, i) => {
+				newOutputs[idx as IndexKey] = i === 0 ? returnValue : null
+			})
 
-			// Update the node with the last result
-			const firstOutputValue = result[`output_${sortedOutputKeys[0]}`]
 			updateNode<CodeNode>(this.editor, shape, (n) => ({
 				...n,
-				lastResult: typeof firstOutputValue === 'number' ? firstOutputValue : null,
+				outputs: newOutputs,
+				lastResult: returnValue,
 			}), false)
 
 			return result
 		} catch (error) {
 			console.error('CodeNode execution error:', error)
-			// Return zeros on error
 			const result: ExecutionResult = {}
 			sortedOutputKeys.forEach((idx) => {
-				result[`output_${idx}`] = 0
+				result[`output_${idx}`] = null
 			})
 			return result
 		}
@@ -192,7 +168,7 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 		const result: InfoValues = {}
 		Object.keys(node.outputs).forEach((idx) => {
 			result[`output_${idx}`] = {
-				value: node.outputs[idx as IndexKey] ?? 0,
+				value: node.outputs[idx as IndexKey] ?? null,
 				isOutOfDate: areAnyInputsOutOfDate(inputs) || shape.props.isOutOfDate,
 			}
 		})
@@ -283,44 +259,31 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			// Get input values from connected nodes
 			const inputPortValues = getNodeInputPortValues(editor, shape.id)
 
-			// Build input variables: in_0, in_1, etc.
-			const pyInputs: Record<string, number> = {}
+			// Build input variables: in_0, in_1, etc. (supports any value type)
+			const pyInputs: Record<string, unknown> = {}
 			const sortedInputKeys = Object.keys(node.inputs).sort()
 			sortedInputKeys.forEach((idx, i) => {
 				const portId = `input_${idx}`
 				const portValue = inputPortValues[portId]
-				const value = portValue?.value ?? node.inputs[idx as IndexKey] ?? 0
-				pyInputs[`in_${i}`] = typeof value === 'number' ? value : 0
+				const value = portValue?.value ?? node.inputs[idx as IndexKey] ?? null
+				pyInputs[`in_${i}`] = value
 			})
 
-			// Run with inputs
+			// Run with inputs (result can be any type including DataFrame)
 			const result = await pyodide.runWithIO(node.code, pyInputs)
 
 			// Update node outputs with the result
-			if (result !== null && result !== undefined) {
-				const sortedOutputKeys = Object.keys(node.outputs).sort()
-				const newOutputs = { ...node.outputs }
+			const sortedOutputKeys = Object.keys(node.outputs).sort()
+			const newOutputs: Record<IndexKey, unknown> = {}
+			sortedOutputKeys.forEach((idx, i) => {
+				newOutputs[idx as IndexKey] = i === 0 ? result : null
+			})
 
-				if (typeof result === 'number') {
-					// Single value goes to first output
-					if (sortedOutputKeys[0]) {
-						newOutputs[sortedOutputKeys[0] as IndexKey] = result
-					}
-				} else if (Array.isArray(result)) {
-					// Array maps to outputs by index
-					sortedOutputKeys.forEach((idx, i) => {
-						if (typeof result[i] === 'number') {
-							newOutputs[idx as IndexKey] = result[i]
-						}
-					})
-				}
-
-				updateNode<CodeNode>(editor, shape, (n) => ({
-					...n,
-					outputs: newOutputs,
-					lastResult: typeof result === 'number' ? result : null,
-				}), false)
-			}
+			updateNode<CodeNode>(editor, shape, (n) => ({
+				...n,
+				outputs: newOutputs,
+				lastResult: result,
+			}), false)
 		} catch (error) {
 			setOutput(String(error))
 		} finally {
