@@ -69,7 +69,7 @@ const options: Partial<TldrawOptions> = {
 }
 
 export default function CanvasPage() {
-    const canvasIdRef = useRef<string | null>(null)
+  const saveFeedbackTimerRef = useRef<number | null>(null)
 
     async function fetchData(url: string) {
         try {
@@ -89,37 +89,11 @@ export default function CanvasPage() {
         }
     }
 
-    async function ensureCanvasId() {
-      if (canvasIdRef.current) return canvasIdRef.current
-
-      const canvases = await fetchData(`${API_BASE}/canvas/`)
-      if (Array.isArray(canvases) && canvases.length > 0 && canvases[0]?.id) {
-        canvasIdRef.current = canvases[0].id
-        return canvasIdRef.current
-      }
-
-      const createResponse = await fetch(`${API_BASE}/canvas/`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ name: 'My Canvas' }),
-      })
-
-      if (!createResponse.ok) {
-        throw new Error(`Failed to create canvas: ${createResponse.status}`)
-      }
-
-      const createdCanvas = await createResponse.json()
-      canvasIdRef.current = createdCanvas.id
-      return canvasIdRef.current
-    }
-
   const editorRef = useRef<Editor | null>(null);
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [activeCanvasId, setActiveCanvasId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
 
   const canvasId = searchParams.get("id");
   useEffect(() => {
@@ -159,9 +133,17 @@ export default function CanvasPage() {
     const apiUrl = `${API_BASE}/canvas/${id}/shapes`;
     fetchData(apiUrl).then((shapeData) => {
       if (!editorRef.current) return;
+
+      const existingShapeIds = editorRef.current.getCurrentPageShapes().map((shape) => shape.id);
+      if (existingShapeIds.length > 0) {
+        editorRef.current.deleteShapes(existingShapeIds);
+      }
+
       if (shapeData && shapeData.length > 0) {
         const shapes = shapeData.map((s: { data: object }) => s.data);
         editorRef.current.createShapes(shapes);
+      } else {
+        editorRef.current.createShape({ type: 'node', x: 200, y: 200 });
       }
     });
   };
@@ -175,8 +157,22 @@ export default function CanvasPage() {
     loadShapes(activeCanvasId);
   }, [activeCanvasId]);
 
+  useEffect(() => {
+    return () => {
+      if (saveFeedbackTimerRef.current !== null) {
+        window.clearTimeout(saveFeedbackTimerRef.current)
+      }
+    }
+  }, [])
+
   const exportShapes = () => {
     if (!editorRef.current || !activeCanvasId) return;
+    setSaveState("saving")
+
+    if (saveFeedbackTimerRef.current !== null) {
+      window.clearTimeout(saveFeedbackTimerRef.current)
+      saveFeedbackTimerRef.current = null
+    }
 
     // Get all shapes on current page
     const shapes = editorRef.current.getCurrentPageShapes();
@@ -184,16 +180,14 @@ export default function CanvasPage() {
     // Serialize to JSON
     const json = JSON.stringify(shapes, null, 2);
 
-    ensureCanvasId().then(canvasId => {
-      const apiUrl = `${API_BASE}/canvas/${canvasId}/shapes`;
-      return fetch(apiUrl, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: json,
-      })
+    const apiUrl = `${API_BASE}/canvas/${activeCanvasId}/shapes`;
+    fetch(apiUrl, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: json,
     })
       .then((response) => {
         if (!response.ok) {
@@ -204,18 +198,24 @@ export default function CanvasPage() {
       .then((data) => {
         console.log("Shapes successfully saved:", data);
         touchCanvas(activeCanvasId);
+        setSaveState("saved")
+        saveFeedbackTimerRef.current = window.setTimeout(() => {
+          setSaveState("idle")
+          saveFeedbackTimerRef.current = null
+        }, 2000)
       })
       .catch((error) => {
         console.error("Error saving shapes:", error);
+        setSaveState("error")
+        saveFeedbackTimerRef.current = window.setTimeout(() => {
+          setSaveState("idle")
+          saveFeedbackTimerRef.current = null
+        }, 3000)
       });
     console.log(json);
   };
 
   // on save, post TLShapes to API
-
-  const selectCodeBlockTool = () => {
-    editorRef.current?.setCurrentTool("code-block");
-  };
 
   if (!activeCanvasId) {
     return (
@@ -236,7 +236,8 @@ export default function CanvasPage() {
   return (
     <div className="canvas-page">
         <Tldraw
-            persistenceKey="workflow"
+          key={activeCanvasId}
+          persistenceKey={`workflow-${activeCanvasId}`}
             options={options}
             overrides={overrides}
             shapeUtils={shapeUtils}
@@ -246,9 +247,6 @@ export default function CanvasPage() {
             onMount={(editor) => {
                 handleMount(editor);
                 ;(window as any).editor = editor
-                if (!editor.getCurrentPageShapes().some((s) => s.type === 'node')) {
-                    editor.createShape({ type: 'node', x: 200, y: 200 })
-                }
 
                 editor.user.updateUserPreferences({ isSnapMode: true })
 
@@ -264,24 +262,27 @@ export default function CanvasPage() {
                 disableTransparency(editor, ['node', 'connection'])
             }}
         />
-      <div className="canvas-action-bar">
+      <div className="canvas-top-left-actions">
         <button
           onClick={() => navigate("/dashboard")}
           className="dash-btn dash-btn-ghost"
         >
           Back to Dashboard
         </button>
-        <button
-          onClick={selectCodeBlockTool}
-          className="dash-btn dash-btn-outline"
-        >
-          Code Block
-        </button>
+      </div>
+      <div className="canvas-top-right-actions">
         <button
           onClick={exportShapes}
           className="dash-btn dash-btn-primary"
+          disabled={saveState === "saving"}
         >
-          Save
+          {saveState === "saving"
+            ? "Saving..."
+            : saveState === "saved"
+              ? "Saved"
+              : saveState === "error"
+                ? "Save failed"
+                : "Save"}
         </button>
       </div>
     </div>

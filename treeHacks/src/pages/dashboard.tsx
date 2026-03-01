@@ -34,6 +34,8 @@ export default function DashboardPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [createNameInput, setCreateNameInput] = useState("");
   const [createNameError, setCreateNameError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CanvasMeta | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const navigate = useNavigate();
   const apiBase = getApiBaseUrl();
 
@@ -256,13 +258,22 @@ export default function DashboardPage() {
     cancelEdit();
   };
 
-  const handleDelete = async (canvas: CanvasMeta) => {
+  const openDeleteModal = (canvas: CanvasMeta) => {
     setOpenActionsId(null);
-    const shouldDelete = window.confirm(`Delete "${canvas.name}"?`);
-    if (!shouldDelete) return;
+    setDeleteTarget(canvas);
+  };
+
+  const closeDeleteModal = () => {
+    if (isDeleting) return;
+    setDeleteTarget(null);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
 
     try {
-      const response = await fetch(`${apiBase}/canvas/${canvas.id}`, {
+      const response = await fetch(`${apiBase}/canvas/${deleteTarget.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -276,15 +287,19 @@ export default function DashboardPage() {
         throw new Error(`HTTP ${response.status}: failed to delete canvas`);
       }
 
-      removeCanvas(canvas.id);
-      setAllCanvases((prev) => prev.filter((existingCanvas) => existingCanvas.id !== canvas.id));
+      removeCanvas(deleteTarget.id);
+      setAllCanvases((prev) => prev.filter((existingCanvas) => existingCanvas.id !== deleteTarget.id));
 
-      if (editingId === canvas.id) {
+      if (editingId === deleteTarget.id) {
         cancelEdit();
       }
+
+      setDeleteTarget(null);
     } catch (error) {
       console.error("Error deleting canvas:", error);
       setCreateError("Could not delete canvas. Please try again.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -468,7 +483,7 @@ export default function DashboardPage() {
                           <button className="dash-dropdown-item" role="menuitem" onClick={() => startEdit(canvas)}>
                             Rename
                           </button>
-                          <button className="dash-dropdown-item is-danger" role="menuitem" onClick={() => void handleDelete(canvas)}>
+                          <button className="dash-dropdown-item is-danger" role="menuitem" onClick={() => openDeleteModal(canvas)}>
                             Delete
                           </button>
                         </div>
@@ -519,6 +534,24 @@ export default function DashboardPage() {
                 disabled={isCreating}
               >
                 {isCreating ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteTarget ? (
+        <div className="dash-modal-backdrop" onClick={closeDeleteModal}>
+          <div className="dash-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="dash-modal-title">Delete Canvas</h3>
+            <p className="dash-modal-subtitle">
+              Are you sure you want to delete "{deleteTarget.name}"? This cannot be undone.
+            </p>
+            <div className="dash-modal-actions">
+              <button className="dash-btn dash-btn-ghost" onClick={closeDeleteModal} disabled={isDeleting}>
+                Cancel
+              </button>
+              <button className="dash-btn dash-btn-primary" onClick={() => void confirmDelete()} disabled={isDeleting}>
+                {isDeleting ? "Deleting..." : "Delete"}
               </button>
             </div>
           </div>
