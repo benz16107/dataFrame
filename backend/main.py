@@ -15,8 +15,14 @@ from datetime import datetime, timezone
 from sqlalchemy import Column, JSON, text
 from starlette.middleware.sessions import SessionMiddleware
 
+# 1. NEW IMPORT FOR GEMINI
+from google import genai
+
 load_dotenv()
 
+# 2. INITIALIZE GEMINI CLIENT
+# Make sure GEMINI_API_KEY is in your .env file
+client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 class User(SQLModel, table=True):
     id: int | None = Field(default=None, primary_key=True)
@@ -59,6 +65,9 @@ class Shape(SQLModel, table=True):
 
     canvas: Canvas = Relationship(back_populates="shapes")
 
+# 3. CHAT REQUEST MODEL
+class ChatRequest(BaseModel):
+    message: str
 
 
 sqlite_file_name = "database.db"
@@ -96,6 +105,7 @@ def get_session():
 
 SessionDep = Annotated[Session, Depends(get_session)]
 
+# --- APP INITIALIZATION ---
 app = FastAPI(title="Auth0 FastAPI Example")
 frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
@@ -176,6 +186,22 @@ def on_startup():
     create_db_and_tables()
     migrate_canvas_owner_sub_column()
 
+# 4. GEMINI CHAT ENDPOINT
+@app.post("/api/chat")
+async def chat_with_ai(request: ChatRequest):
+    try:
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=request.message,
+            config={
+                "system_instruction": "You are a helpful coding assistant on an application that uses Tldraw canvas to run code python code within the browser. Users will ask you questions on how to use Tldraw and coding questions Be concise."
+            }
+        )
+        return {"reply": response.text}
+    except Exception as e:
+        print(f"\n🔥 GEMINI CRASH REASON: {str(e)}\n")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 def get_owned_canvas_or_404(session: Session, canvas_id: str, owner_sub: str) -> Canvas:
     canvas = session.get(Canvas, canvas_id)
@@ -194,8 +220,8 @@ def get_owned_canvas_or_404(session: Session, canvas_id: str, owner_sub: str) ->
 
     raise HTTPException(status_code=404, detail="Canvas not found")
 
-# User CRUD
 
+# User CRUD
 @app.post("/users/")
 def create_user(user: User, session: SessionDep) -> User:
     session.add(user)
@@ -290,7 +316,6 @@ def delete_canvas(
 
 # Shape CRUD
 
-# Get shapes for a specific canvas
 @app.get("/canvas/{canvas_id}/shapes")
 def read_shapes(
     canvas_id: str,
@@ -299,11 +324,9 @@ def read_shapes(
 ) -> list[Shape]:
     get_owned_canvas_or_404(session, canvas_id, current_user_sub)
     shapes = session.exec(select(Shape).where(Shape.canvas_id == canvas_id)).all()
-
     return shapes
 
 
-# Saves all shapes via Save button - deletes all existing shapes and recreates them
 @app.post("/canvas/{canvas_id}/shapes")
 def batch_save_shape(
     canvas_id: str,
@@ -312,12 +335,10 @@ def batch_save_shape(
     current_user_sub: CurrentUserSubDep,
 ):
     get_owned_canvas_or_404(session, canvas_id, current_user_sub)
-    # Delete all existing shapes for this canvas
     existing = session.exec(select(Shape).where(Shape.canvas_id == canvas_id)).all()
     for shape in existing:
         session.delete(shape)
 
-    # Create new shapes
     db_shapes = []
     for shape in shapes:
         db_shape = Shape(
@@ -331,7 +352,6 @@ def batch_save_shape(
 
     session.commit()
     return db_shapes
-
 
 
 @app.get("/")
@@ -395,5 +415,4 @@ async def profile(
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(app, host="0.0.0.0", port=8000)
