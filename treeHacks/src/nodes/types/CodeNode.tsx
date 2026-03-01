@@ -12,7 +12,7 @@ import {
 } from '../../constants'
 import { Port, ShapePort } from '../../ports/Port'
 import { indexList, indexListEntries, indexListLength } from '../../utils'
-import { getNodePortConnections } from '../nodePorts'
+import { getNodeInputPortValues, getNodePortConnections } from '../nodePorts'
 import { NodeShape } from '../NodeShapeUtil'
 import {
 	areAnyInputsOutOfDate,
@@ -56,7 +56,7 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	getDefault(): CodeNode {
 		return {
 			type: 'code',
-			code: "# Python code\nprint('Hello!')\n",
+			code: "# Inputs: in_0, in_1, ...\n# Set 'output' to send value downstream\n\noutput = in_0 * 2\nprint(f'Result: {output}')\n",
 			inputs: indexList([0]),
 			outputs: indexList([0]),
 			lastResult: null,
@@ -109,14 +109,76 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 		return ports
 	}
 
-	// For now, execute does nothing with inputs/outputs - just runs the code
-	async execute(_shape: NodeShape, node: CodeNode, _inputs: InputValues): Promise<ExecutionResult> {
-		// Return dummy output values for now
-		const result: ExecutionResult = {}
-		Object.keys(node.outputs).forEach((idx) => {
-			result[`output_${idx}`] = node.outputs[idx as IndexKey] ?? 0
+	// Execute the Python code with inputs and capture the returned value
+	async execute(shape: NodeShape, node: CodeNode, inputs: InputValues): Promise<ExecutionResult> {
+		const pyodide = Pyodide.getInstance()
+
+		// Build input variables: in_0, in_1, etc.
+		const pyInputs: Record<string, number> = {}
+		const sortedInputKeys = Object.keys(node.inputs).sort()
+		sortedInputKeys.forEach((idx, i) => {
+			const portId = `input_${idx}`
+			const value = inputs[portId] ?? node.inputs[idx as IndexKey] ?? 0
+			pyInputs[`in_${i}`] = value
 		})
-		return result
+
+		const sortedOutputKeys = Object.keys(node.outputs).sort()
+
+		try {
+			// Run the code and get the returned value
+			const returnValue = await pyodide.runWithIO(node.code, pyInputs)
+
+			// Map the return value to outputs
+			const result: ExecutionResult = {}
+
+			if (returnValue === null || returnValue === undefined) {
+				// No return value - all outputs are 0
+				sortedOutputKeys.forEach((idx) => {
+					result[`output_${idx}`] = 0
+				})
+			} else if (typeof returnValue === 'number') {
+				// Single number - goes to first output
+				sortedOutputKeys.forEach((idx, i) => {
+					result[`output_${idx}`] = i === 0 ? returnValue : 0
+				})
+			} else if (Array.isArray(returnValue)) {
+				// Array/tuple - map to outputs by index
+				sortedOutputKeys.forEach((idx, i) => {
+					const value = returnValue[i]
+					result[`output_${idx}`] = typeof value === 'number' ? value : 0
+				})
+			} else if (typeof returnValue === 'object') {
+				// Dict - map by key (out_0, out_1, etc.)
+				sortedOutputKeys.forEach((idx, i) => {
+					const key = `out_${i}`
+					const value = returnValue[key]
+					result[`output_${idx}`] = typeof value === 'number' ? value : 0
+				})
+			} else {
+				// Try to convert to number
+				const numValue = Number(returnValue)
+				sortedOutputKeys.forEach((idx, i) => {
+					result[`output_${idx}`] = i === 0 && !isNaN(numValue) ? numValue : 0
+				})
+			}
+
+			// Update the node with the last result
+			const firstOutputValue = result[`output_${sortedOutputKeys[0]}`]
+			updateNode<CodeNode>(this.editor, shape, (n) => ({
+				...n,
+				lastResult: typeof firstOutputValue === 'number' ? firstOutputValue : null,
+			}), false)
+
+			return result
+		} catch (error) {
+			console.error('CodeNode execution error:', error)
+			// Return zeros on error
+			const result: ExecutionResult = {}
+			sortedOutputKeys.forEach((idx) => {
+				result[`output_${idx}`] = 0
+			})
+			return result
+		}
 	}
 
 	getOutputInfo(shape: NodeShape, node: CodeNode, inputs: InfoValues): InfoValues {
@@ -204,7 +266,47 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				setOutput((prev) => (prev ? prev + '\n' + text : text))
 			})
 
-			await pyodide.run(node.code)
+			// Get input values from connected nodes
+			const inputPortValues = getNodeInputPortValues(editor, shape.id)
+
+			// Build input variables: in_0, in_1, etc.
+			const pyInputs: Record<string, number> = {}
+			const sortedInputKeys = Object.keys(node.inputs).sort()
+			sortedInputKeys.forEach((idx, i) => {
+				const portId = `input_${idx}`
+				const portValue = inputPortValues[portId]
+				const value = portValue?.value ?? node.inputs[idx as IndexKey] ?? 0
+				pyInputs[`in_${i}`] = typeof value === 'number' ? value : 0
+			})
+
+			// Run with inputs
+			const result = await pyodide.runWithIO(node.code, pyInputs)
+
+			// Update node outputs with the result
+			if (result !== null && result !== undefined) {
+				const sortedOutputKeys = Object.keys(node.outputs).sort()
+				const newOutputs = { ...node.outputs }
+
+				if (typeof result === 'number') {
+					// Single value goes to first output
+					if (sortedOutputKeys[0]) {
+						newOutputs[sortedOutputKeys[0] as IndexKey] = result
+					}
+				} else if (Array.isArray(result)) {
+					// Array maps to outputs by index
+					sortedOutputKeys.forEach((idx, i) => {
+						if (typeof result[i] === 'number') {
+							newOutputs[idx as IndexKey] = result[i]
+						}
+					})
+				}
+
+				updateNode<CodeNode>(editor, shape, (n) => ({
+					...n,
+					outputs: newOutputs,
+					lastResult: typeof result === 'number' ? result : null,
+				}), false)
+			}
 		} catch (error) {
 			setOutput(String(error))
 		} finally {
@@ -237,15 +339,17 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			{/* Code Editor */}
 			<div
 				className="CodeNode-editor"
+				style={{ pointerEvents: 'all' }}
 				onPointerDown={onPointerDown}
 				onKeyDown={(e) => e.stopPropagation()}
 			>
-				<div className="CodeNode-editor-header">
+				<div className="CodeNode-editor-header" onPointerDown={onPointerDown}>
 					<span>python</span>
 					<button
 						onClick={executePython}
 						disabled={isRunning}
 						className="CodeNode-run-button"
+						onPointerDown={onPointerDown}
 					>
 						{isRunning ? 'Running...' : 'Run'}
 					</button>
@@ -256,12 +360,12 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 					theme="dark"
 					extensions={[python()]}
 					onChange={handleCodeChange}
-					style={{ fontSize: '12px' }}
+					style={{ fontSize: '12px', pointerEvents: 'all' }}
 				/>
 			</div>
 
 			{/* Console Output */}
-			<div className="CodeNode-console" onPointerDown={onPointerDown}>
+			<div className="CodeNode-console" style={{ pointerEvents: 'all' }} onPointerDown={onPointerDown}>
 				<div className="CodeNode-console-header">Console</div>
 				{output && <pre className="CodeNode-console-output">{output}</pre>}
 			</div>

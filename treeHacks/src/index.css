@@ -407,6 +407,10 @@ body {
 	border-radius: var(--tl-radius-2);
 	overflow: hidden;
 	background: #1e1e1e;
+
+	[data-state='select.idle'] & {
+		pointer-events: all;
+	}
 }
 
 .CodeNode-editor-header {
@@ -447,6 +451,10 @@ body {
 	min-height: 60px;
 	max-height: 80px;
 	overflow-y: auto;
+
+	[data-state='select.idle'] & {
+		pointer-events: all;
+	}
 }
 
 .CodeNode-console-header {
