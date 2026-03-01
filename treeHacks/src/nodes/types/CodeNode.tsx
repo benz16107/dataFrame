@@ -6,6 +6,7 @@ import { Pyodide } from '@/pyodide'
 import { CodeIcon } from '../../components/icons/CodeIcon'
 import {
 	NODE_HEADER_HEIGHT_PX,
+	NODE_ROW_BOTTOM_PADDING_PX,
 	NODE_ROW_HEADER_GAP_PX,
 	NODE_ROW_HEIGHT_PX,
 	NODE_WIDTH_PX,
@@ -64,15 +65,21 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 	}
 
 	// The height of the node is based on the number of input/output rows plus the code editor
-	getBodyHeightPx(_shape: NodeShape, node: CodeNode) {
+	getBodyHeightPx(shape: NodeShape, node: CodeNode) {
 		const inputRows = indexListLength(node.inputs)
 		const outputRows = indexListLength(node.outputs)
 		const maxRows = Math.max(inputRows, outputRows)
-		return NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
+		const baseBodyHeight = NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
+		const overrideBodyHeight = Math.max(
+			0,
+			(shape.props.h || 0) - NODE_HEADER_HEIGHT_PX - NODE_ROW_HEADER_GAP_PX - NODE_ROW_BOTTOM_PADDING_PX
+		)
+		return Math.max(baseBodyHeight, overrideBodyHeight)
 	}
 
-	getPorts(_shape: NodeShape, node: CodeNode): Record<string, ShapePort> {
+	getPorts(shape: NodeShape, node: CodeNode): Record<string, ShapePort> {
 		const ports: Record<string, ShapePort> = {}
+		const nodeWidth = Math.max(NODE_WIDTH_PX, shape.props.w || NODE_WIDTH_PX)
 
 		// Input ports on the left side
 		Object.keys(node.inputs)
@@ -96,7 +103,7 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 			.forEach((idx, i) => {
 				ports[`output_${idx}`] = {
 					id: `output_${idx}`,
-					x: NODE_WIDTH_PX,
+					x: nodeWidth,
 					y:
 						NODE_HEADER_HEIGHT_PX +
 						NODE_ROW_HEADER_GAP_PX +
@@ -243,6 +250,13 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 	const editor = useEditor()
 	const [output, setOutput] = useState<string | null>(null)
 	const [isRunning, setIsRunning] = useState(false)
+	const inputRows = indexListLength(node.inputs)
+	const outputRows = indexListLength(node.outputs)
+	const maxRows = Math.max(inputRows, outputRows)
+	const baseBodyHeight = NODE_ROW_HEIGHT_PX * maxRows + CODE_EDITOR_MIN_HEIGHT_PX + CONSOLE_OUTPUT_HEIGHT_PX
+	const bodyHeight = Math.max(baseBodyHeight, shape.props.h || 0)
+	const consoleHeight = Math.max(72, Math.min(140, Math.round(bodyHeight * 0.24)))
+	const editorHeight = Math.max(120, bodyHeight - NODE_ROW_HEIGHT_PX * maxRows - consoleHeight)
 
 	const onPointerDown = useCallback((event: PointerEvent) => {
 		event.stopPropagation()
@@ -356,7 +370,7 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				</div>
 				<CodeMirror
 					value={node.code}
-					height="100px"
+					height={`${editorHeight}px`}
 					theme="dark"
 					extensions={[python()]}
 					onChange={handleCodeChange}
@@ -365,7 +379,16 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 			</div>
 
 			{/* Console Output */}
-			<div className="CodeNode-console" style={{ pointerEvents: 'all' }} onPointerDown={onPointerDown}>
+			<div
+				className="CodeNode-console"
+				style={{
+					pointerEvents: 'all',
+					height: `${consoleHeight}px`,
+					maxHeight: `${consoleHeight}px`,
+					minHeight: `${consoleHeight}px`,
+				}}
+				onPointerDown={onPointerDown}
+			>
 				<div className="CodeNode-console-header">Console</div>
 				{output && <pre className="CodeNode-console-output">{output}</pre>}
 			</div>

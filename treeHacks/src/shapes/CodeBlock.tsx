@@ -47,7 +47,7 @@ function CodeBlockComponent({ shape }: { shape: ICustomShape }) {
   }
 
   const beginEdgeResize = (
-    edge: 'left' | 'right' | 'top' | 'bottom',
+    edge: 'left' | 'right' | 'top' | 'bottom' | 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right',
     event: ReactPointerEvent<HTMLDivElement>
   ) => {
     event.preventDefault()
@@ -72,20 +72,20 @@ function CodeBlockComponent({ shape }: { shape: ICustomShape }) {
       let nextX = startX
       let nextY = startY
 
-      if (edge === 'right') {
+      if (edge === 'right' || edge === 'top-right' || edge === 'bottom-right') {
         nextW = Math.max(MIN_WIDTH, startW + deltaX)
       }
 
-      if (edge === 'left') {
+      if (edge === 'left' || edge === 'top-left' || edge === 'bottom-left') {
         nextW = Math.max(MIN_WIDTH, startW - deltaX)
         nextX = startX + (startW - nextW)
       }
 
-      if (edge === 'bottom') {
+      if (edge === 'bottom' || edge === 'bottom-left' || edge === 'bottom-right') {
         nextH = Math.max(MIN_HEIGHT, startH + deltaY)
       }
 
-      if (edge === 'top') {
+      if (edge === 'top' || edge === 'top-left' || edge === 'top-right') {
         nextH = Math.max(MIN_HEIGHT, startH - deltaY)
         nextY = startY + (startH - nextH)
       }
@@ -153,19 +153,111 @@ function CodeBlockComponent({ shape }: { shape: ICustomShape }) {
     >
       <div
         onPointerDown={(event) => beginEdgeResize('top', event)}
-        style={{ position: 'absolute', top: 0, left: 8, right: 8, height: 8, cursor: 'ns-resize', zIndex: 40 }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 10,
+          right: 10,
+          height: 12,
+          cursor: 'ns-resize',
+          zIndex: 40,
+          borderTop: '2px solid rgba(148, 163, 184, 0.7)',
+        }}
       />
       <div
         onPointerDown={(event) => beginEdgeResize('right', event)}
-        style={{ position: 'absolute', top: 8, right: 0, bottom: 8, width: 8, cursor: 'ew-resize', zIndex: 40 }}
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 0,
+          bottom: 10,
+          width: 12,
+          cursor: 'ew-resize',
+          zIndex: 40,
+          borderRight: '2px solid rgba(148, 163, 184, 0.7)',
+        }}
       />
       <div
         onPointerDown={(event) => beginEdgeResize('bottom', event)}
-        style={{ position: 'absolute', bottom: 0, left: 8, right: 8, height: 8, cursor: 'ns-resize', zIndex: 40 }}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 10,
+          right: 10,
+          height: 12,
+          cursor: 'ns-resize',
+          zIndex: 40,
+          borderBottom: '2px solid rgba(148, 163, 184, 0.7)',
+        }}
       />
       <div
         onPointerDown={(event) => beginEdgeResize('left', event)}
-        style={{ position: 'absolute', top: 8, left: 0, bottom: 8, width: 8, cursor: 'ew-resize', zIndex: 40 }}
+        style={{
+          position: 'absolute',
+          top: 10,
+          left: 0,
+          bottom: 10,
+          width: 12,
+          cursor: 'ew-resize',
+          zIndex: 40,
+          borderLeft: '2px solid rgba(148, 163, 184, 0.7)',
+        }}
+      />
+      <div
+        onPointerDown={(event) => beginEdgeResize('top-left', event)}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: 16,
+          height: 16,
+          cursor: 'nwse-resize',
+          zIndex: 45,
+          background: 'rgba(148, 163, 184, 0.9)',
+          borderRadius: '4px',
+        }}
+      />
+      <div
+        onPointerDown={(event) => beginEdgeResize('top-right', event)}
+        style={{
+          position: 'absolute',
+          top: 0,
+          right: 0,
+          width: 16,
+          height: 16,
+          cursor: 'nesw-resize',
+          zIndex: 45,
+          background: 'rgba(148, 163, 184, 0.9)',
+          borderRadius: '4px',
+        }}
+      />
+      <div
+        onPointerDown={(event) => beginEdgeResize('bottom-left', event)}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          width: 16,
+          height: 16,
+          cursor: 'nesw-resize',
+          zIndex: 45,
+          background: 'rgba(148, 163, 184, 0.9)',
+          borderRadius: '4px',
+        }}
+      />
+      <div
+        onPointerDown={(event) => beginEdgeResize('bottom-right', event)}
+        style={{
+          position: 'absolute',
+          bottom: 0,
+          right: 0,
+          width: 16,
+          height: 16,
+          cursor: 'nwse-resize',
+          zIndex: 45,
+          background: 'rgba(148, 163, 184, 0.9)',
+          borderRadius: '4px',
+        }}
       />
 
       {/* HEADER & RUN BUTTON */}

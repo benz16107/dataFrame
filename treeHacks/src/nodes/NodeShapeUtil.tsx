@@ -26,7 +26,7 @@ const NODE_TYPE = 'node'
 declare module 'tldraw' {
 	export interface TLGlobalShapePropsMap {
 		// Define our custom node shape type that extends tldraw's base shape system
-		[NODE_TYPE]: { node: NodeType; isOutOfDate: boolean }
+		[NODE_TYPE]: { node: NodeType; isOutOfDate: boolean; w: number; h: number }
 	}
 }
 
@@ -38,23 +38,27 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	static override props: RecordProps<NodeShape> = {
 		node: NodeType,
 		isOutOfDate: T.boolean,
+		w: T.number,
+		h: T.number,
 	}
 
 	getDefaultProps(): NodeShape['props'] {
 		return {
 			node: getNodeDefinition(this.editor, 'add').getDefault(),
 			isOutOfDate: false,
+			w: NODE_WIDTH_PX,
+			h: 0,
 		}
 	}
 
 	override canEdit() {
 		return false
 	}
-	override canResize() {
-		return false
+	override canResize(shape: NodeShape) {
+		return shape.props.node.type === 'code'
 	}
-	override hideResizeHandles() {
-		return true
+	override hideResizeHandles(shape: NodeShape) {
+		return !this.canResize(shape)
 	}
 	override hideRotateHandle() {
 		return true
@@ -77,6 +81,7 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	// Define the geometry of our node shape including ports
 	getGeometry(shape: NodeShape) {
 		const ports = getNodePorts(this.editor, shape)
+		const width = shape.props.node.type === 'code' ? Math.max(NODE_WIDTH_PX, shape.props.w) : NODE_WIDTH_PX
 
 		const portGeometries = Object.values(ports).map(
 			(port) =>
@@ -92,7 +97,7 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 		)
 
 		const bodyGeometry = new Rectangle2d({
-			width: NODE_WIDTH_PX,
+			width,
 			height: getNodeHeightPx(this.editor, shape),
 			isFilled: true,
 		})
@@ -103,7 +108,17 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 	}
 
 	override onResize(shape: any, info: TLResizeInfo<any>) {
-		return resizeBox(shape, info)
+		if (shape.props.node?.type !== 'code') return shape
+
+		const resized = resizeBox(shape, info) as NodeShape
+		return {
+			...resized,
+			props: {
+				...resized.props,
+				w: Math.max(NODE_WIDTH_PX, resized.props.w),
+				h: Math.max(260, resized.props.h),
+			},
+		}
 	}
 
 	component(shape: NodeShape) {
@@ -120,13 +135,14 @@ export class NodeShapeUtil extends ShapeUtil<NodeShape> {
 function NodeShapeIndicator({ shape, ports }: { shape: NodeShape; ports: ShapePort[] }) {
 	const id = useUniqueSafeId()
 	const editor = useEditor()
+	const width = shape.props.node.type === 'code' ? Math.max(NODE_WIDTH_PX, shape.props.w) : NODE_WIDTH_PX
 
 	return (
 		<>
 			{/* Create a mask to show ports as holes in the selection bounds */}
 			<mask id={id}>
 				<rect
-					width={NODE_WIDTH_PX + 10}
+					width={width + 10}
 					height={getNodeHeightPx(editor, shape) + 10}
 					fill="white"
 					x={-5}
@@ -145,7 +161,7 @@ function NodeShapeIndicator({ shape, ports }: { shape: NodeShape; ports: ShapePo
 			</mask>
 			<rect
 				rx={9}
-				width={NODE_WIDTH_PX}
+				width={width}
 				height={getNodeHeightPx(editor, shape)}
 				mask={`url(#${id})`}
 			/>
@@ -181,6 +197,10 @@ function NodeShape({ shape }: { shape: NodeShape }) {
 			className={classNames('NodeShape', {
 				NodeShape_executing: isExecuting,
 			})}
+			style={{
+				width: `${shape.props.node.type === 'code' ? Math.max(NODE_WIDTH_PX, shape.props.w) : NODE_WIDTH_PX}px`,
+				height: `${getNodeHeightPx(editor, shape)}px`,
+			}}
 		>
 			<div className="NodeShape-heading">
 				<div className="NodeShape-label">{nodeDefinition.heading ?? nodeDefinition.title}</div>
