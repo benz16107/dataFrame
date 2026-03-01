@@ -356,3 +356,112 @@ body {
 	align-items: center;
 	justify-content: center;
 }
+
+/* CodeNode styles */
+.CodeNode {
+	display: flex;
+	flex-direction: column;
+	width: 100%;
+	min-height: 200px;
+}
+
+.CodeNode-ports {
+	display: flex;
+	justify-content: space-between;
+	padding: var(--tl-space-2) 0;
+}
+
+.CodeNode-inputs,
+.CodeNode-outputs {
+	display: flex;
+	flex-direction: column;
+}
+
+.CodeNode-outputs {
+	align-items: flex-end;
+}
+
+.CodeNode-port-row {
+	height: 44px;
+	display: flex;
+	align-items: center;
+	gap: var(--tl-space-2);
+	padding: 0 var(--tl-space-4);
+}
+
+.CodeNode-port-row--output {
+	flex-direction: row-reverse;
+}
+
+.CodeNode-port-label {
+	font-size: 11px;
+	font-family: monospace;
+	color: var(--tl-color-text-3);
+}
+
+.CodeNode-editor {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	margin: 0 var(--tl-space-2);
+	border-radius: var(--tl-radius-2);
+	overflow: hidden;
+	background: #1e1e1e;
+}
+
+.CodeNode-editor-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: var(--tl-space-2) var(--tl-space-3);
+	background: #2d2d2d;
+	font-size: 11px;
+	color: #888;
+	font-family: monospace;
+}
+
+.CodeNode-run-button {
+	background: #10b981;
+	color: white;
+	border: none;
+	border-radius: var(--tl-radius-2);
+	padding: 4px 12px;
+	font-size: 11px;
+	cursor: pointer;
+	font-weight: 500;
+
+	&:hover {
+		background: #059669;
+	}
+
+	&:disabled {
+		background: #555;
+		cursor: not-allowed;
+	}
+}
+
+.CodeNode-console {
+	margin: var(--tl-space-2);
+	background: #000;
+	border-radius: var(--tl-radius-2);
+	min-height: 60px;
+	max-height: 80px;
+	overflow-y: auto;
+}
+
+.CodeNode-console-header {
+	padding: var(--tl-space-2) var(--tl-space-3);
+	font-size: 10px;
+	color: #666;
+	text-transform: uppercase;
+	font-family: monospace;
+}
+
+.CodeNode-console-output {
+	margin: 0;
+	padding: 0 var(--tl-space-3) var(--tl-space-2);
+	font-size: 12px;
+	color: #fff;
+	font-family: monospace;
+	white-space: pre-wrap;
+}
