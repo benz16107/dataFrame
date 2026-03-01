@@ -3,7 +3,7 @@ import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePa
 import "tldraw/tldraw.css";
 import { CodeBlockUtil, CodeBlockTool } from "../shapes/CodeBlock";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { touchCanvas, upsertCanvas } from "@/lib/canvasStore";
+import { touchCanvas, upsertCanvas } from "../lib/canvasStore";
 import { getApiBaseUrl, getLogoutUrl, logoutSession } from '../lib/auth'
 const API_BASE = getApiBaseUrl();
 
