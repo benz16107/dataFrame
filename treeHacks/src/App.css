@@ -267,6 +267,13 @@
   box-shadow: 0 10px 25px rgba(15, 23, 42, 0.2);
 }
 
+.dash-btn-saved {
+  background: rgba(148, 163, 184, 0.35);
+  color: rgba(15, 23, 42, 0.72);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: none;
+}
+
 .dash-btn-outline {
   border-color: rgba(15, 23, 42, 0.2);
   color: #0f172a;

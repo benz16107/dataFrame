@@ -322,22 +322,22 @@ export default function CanvasPage() {
       <div className="canvas-top-right-actions">
         <button
           onClick={exportShapes}
-          className="dash-btn dash-btn-primary"
+          className={`dash-btn ${saveState === "idle" || saveState === "saved" ? "dash-btn-saved" : "dash-btn-primary"}`}
           disabled={saveState === "saving" || saveState === "autosaving"}
         >
           {saveState === "saving"
             ? "Saving..."
             : saveState === "autosaving"
-              ? "Auto-saving..."
+              ? "Saving..."
             : saveState === "saved"
               ? "Saved"
               : saveState === "autosaved"
-                ? "Auto-saved"
+                ? "Saving..."
               : saveState === "error"
                 ? "Save failed"
                 : saveState === "autoerror"
                   ? "Auto-save failed"
-                : "Save"}
+                : "Saved"}
         </button>
       </div>
     </div>
