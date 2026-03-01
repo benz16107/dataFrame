@@ -22,7 +22,7 @@ import { SliderNodeDefinition } from './types/SliderNode'
 import { SubtractNodeDefinition } from './types/SubtractNode'
 import { CodeNodeDefinition } from './types/CodeNode'
 import { OutputNodeDefinition } from './types/OutputNode'
-import { GraphOutputNodeDefinition } from './types/GraphOutputNode'
+import { PlotNodeDefinition } from './types/PlotNode'
 import { GeminiNodeDefinition } from './types/GeminiNode'
 import { TextOutputNodeDefinition } from './types/TextOutputNode'
 import { NumberOutputNodeDefinition } from './types/NumberOutputNode'
@@ -31,7 +31,7 @@ import { NumberOutputNodeDefinition } from './types/NumberOutputNode'
 export const NodeDefinitions = {
 	code: CodeNodeDefinition,
 	output: OutputNodeDefinition,
-	graphOutput: GraphOutputNodeDefinition,
+	plot: PlotNodeDefinition,
 	gemini: GeminiNodeDefinition,
 	textOutput: TextOutputNodeDefinition,
 	numberOutput: NumberOutputNodeDefinition,

@@ -91,7 +91,7 @@ export function WorkflowToolbar() {
 				<ToolbarItem tool="node-textOutput" />
 				<ToolbarItem tool="node-numberOutput" />
 				<ToolbarItem tool="node-output" />
-				<ToolbarItem tool="node-graphOutput" />
+				<ToolbarItem tool="node-plot" />
 				<ToolbarItem tool="node-gemini" />
 				<ToolbarItem tool="node-slider" />
 			</TldrawUiMenuGroup>
