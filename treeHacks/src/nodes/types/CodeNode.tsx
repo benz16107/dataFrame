@@ -25,6 +25,7 @@ import {
 	NodeComponentProps,
 	NodeDefinition,
 	NodeRow,
+	PortRenameDialog,
 	PortValueDropdown,
 	STOP_EXECUTION,
 	updateNode,
@@ -53,6 +54,8 @@ export const CodeNode = T.object({
 	aiPrompt: T.string,
 	inputs: T.dict(T.indexKey, T.any),
 	outputs: T.dict(T.indexKey, T.any),
+	inputLabels: T.dict(T.indexKey, T.string),
+	outputLabels: T.dict(T.indexKey, T.string),
 	lastResult: T.any.nullable(),
 })
 
@@ -70,6 +73,8 @@ export class CodeNodeDefinition extends NodeDefinition<CodeNode> {
 			aiPrompt: '',
 			inputs: indexList([0]),
 			outputs: indexList([null]),
+			inputLabels: {},
+			outputLabels: {},
 			lastResult: null,
 		}
 	}
@@ -197,6 +202,12 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 	const [isRunning, setIsRunning] = useState(false)
 	const [isGenerating, setIsGenerating] = useState(false)
 	const [aiError, setAiError] = useState<string | null>(null)
+	const [renameTarget, setRenameTarget] = useState<{
+		kind: 'input' | 'output'
+		idx: IndexKey
+		rowIndex: number
+	} | null>(null)
+	const [renameValue, setRenameValue] = useState('')
 	const inputPortValues = useValue('code input port values', () => getNodeInputPortValues(editor, shape.id), [
 		editor,
 		shape.id,
@@ -270,10 +281,13 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 
 		updateNode<CodeNode>(editor, shape, (current) => {
 			const nextInputs = { ...current.inputs }
+			const nextInputLabels = { ...current.inputLabels }
 			delete nextInputs[idx]
+			delete nextInputLabels[idx]
 			return {
 				...current,
 				inputs: nextInputs,
+				inputLabels: nextInputLabels,
 			}
 		}, false)
 	}
@@ -294,12 +308,61 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 
 		updateNode<CodeNode>(editor, shape, (current) => {
 			const nextOutputs = { ...current.outputs }
+			const nextOutputLabels = { ...current.outputLabels }
 			delete nextOutputs[idx]
+			delete nextOutputLabels[idx]
 			return {
 				...current,
 				outputs: nextOutputs,
+				outputLabels: nextOutputLabels,
 			}
 		}, false)
+	}
+
+	const openRenameDialog = (kind: 'input' | 'output', idx: IndexKey, rowIndex: number) => {
+		const defaultName = kind === 'input' ? getInputDisplayName(rowIndex) : getOutputDisplayName(rowIndex)
+		const labels = kind === 'input' ? node.inputLabels : node.outputLabels
+		setRenameValue((labels[idx] ?? defaultName).trim())
+		setRenameTarget({ kind, idx, rowIndex })
+	}
+
+	const closeRenameDialog = () => {
+		setRenameTarget(null)
+		setRenameValue('')
+	}
+
+	const saveRenameDialog = () => {
+		if (!renameTarget) return
+
+		const trimmedName = renameValue.trim()
+		const { kind, idx } = renameTarget
+		updateNode<CodeNode>(editor, shape, (current) => {
+			if (kind === 'input') {
+				const nextInputLabels = { ...current.inputLabels }
+				if (trimmedName.length === 0) {
+					delete nextInputLabels[idx]
+				} else {
+					nextInputLabels[idx] = trimmedName
+				}
+				return {
+					...current,
+					inputLabels: nextInputLabels,
+				}
+			}
+
+			const nextOutputLabels = { ...current.outputLabels }
+			if (trimmedName.length === 0) {
+				delete nextOutputLabels[idx]
+			} else {
+				nextOutputLabels[idx] = trimmedName
+			}
+			return {
+				...current,
+				outputLabels: nextOutputLabels,
+			}
+		}, false)
+
+		closeRenameDialog()
 	}
 
 	const handleAddInputClick = (event: MouseEvent<HTMLButtonElement>) => {
@@ -329,6 +392,22 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 		editor.markEventAsHandled(event)
 		handleRemoveOutput(idx)
 	}
+
+	const handleRenameInputClick =
+		(idx: IndexKey, rowIndex: number) => (event: MouseEvent<HTMLButtonElement>) => {
+			event.preventDefault()
+			event.stopPropagation()
+			editor.markEventAsHandled(event)
+			openRenameDialog('input', idx, rowIndex)
+		}
+
+	const handleRenameOutputClick =
+		(idx: IndexKey, rowIndex: number) => (event: MouseEvent<HTMLButtonElement>) => {
+			event.preventDefault()
+			event.stopPropagation()
+			editor.markEventAsHandled(event)
+			openRenameDialog('output', idx, rowIndex)
+		}
 
 	const executePython = async () => {
 		setIsRunning(true)
@@ -454,6 +533,7 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 					{indexListEntries(node.inputs).map(([idx], rowIndex) => {
 						const isFirst = rowIndex === 0
 						const inputPortId = `input_${idx}`
+						const inputLabel = getCustomPortDisplayName(node.inputLabels, idx, rowIndex, 'input')
 						const connectedInput = inputPortValues[inputPortId]
 						const previewInputValue =
 							connectedInput?.value === STOP_EXECUTION
@@ -462,9 +542,18 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 						return (
 						<NodeRow key={idx} className="CodeNode-port-row">
 							<Port shapeId={shape.id} portId={`input_${idx}`} />
-							<span className="CodeNode-port-label">{getInputDisplayName(rowIndex)}</span>
+							<span className="CodeNode-port-label">{inputLabel}</span>
+							<button
+								type="button"
+								className="CodeNode-inline-rename"
+								title={`Rename ${inputLabel}`}
+								onPointerDown={onPointerDownHandled}
+								onClick={handleRenameInputClick(idx, rowIndex)}
+							>
+								✎
+							</button>
 							<PortValueDropdown
-								title={`${getInputDisplayName(rowIndex)} value`}
+								title={`${inputLabel} value`}
 								value={previewInputValue}
 							/>
 							{!isFirst && (
@@ -496,6 +585,7 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				<div className="CodeNode-outputs">
 					{indexListEntries(node.outputs).map(([idx], rowIndex) => {
 						const isFirst = rowIndex === 0
+						const outputLabel = getCustomPortDisplayName(node.outputLabels, idx, rowIndex, 'output')
 						const previewOutputValue = node.outputs[idx as IndexKey] ?? null
 						return (
 						<NodeRow key={idx} className="CodeNode-port-row CodeNode-port-row--output">
@@ -512,11 +602,20 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 								</button>
 							)}
 							<PortValueDropdown
-								title={`${getOutputDisplayName(rowIndex)} value`}
+								title={`${outputLabel} value`}
 								value={previewOutputValue}
 								align="right"
 							/>
-							<span className="CodeNode-port-label">{getOutputDisplayName(rowIndex)}</span>
+							<button
+								type="button"
+								className="CodeNode-inline-rename"
+								title={`Rename ${outputLabel}`}
+								onPointerDown={onPointerDownHandled}
+								onClick={handleRenameOutputClick(idx, rowIndex)}
+							>
+								✎
+							</button>
+							<span className="CodeNode-port-label">{outputLabel}</span>
 							<Port shapeId={shape.id} portId={`output_${idx}`} />
 						</NodeRow>
 						)
@@ -628,6 +727,23 @@ export function CodeNodeComponent({ shape, node }: NodeComponentProps<CodeNode>)
 				</div>
 				{output && <pre className="CodeNode-console-output">{output}</pre>}
 			</div>
+
+			<PortRenameDialog
+				isOpen={renameTarget !== null}
+				title={
+					renameTarget
+						? `Rename ${
+							renameTarget.kind === 'input'
+								? getInputDisplayName(renameTarget.rowIndex)
+								: getOutputDisplayName(renameTarget.rowIndex)
+						}`
+						: 'Rename port'
+				}
+				value={renameValue}
+				onChange={setRenameValue}
+				onCancel={closeRenameDialog}
+				onSave={saveRenameDialog}
+			/>
 		</div>
 	)
 }
@@ -659,6 +775,17 @@ function getInputVariableName(index: number): string {
 
 function getOutputVariableName(index: number): string {
 	return index === 0 ? 'output' : `output${index + 1}`
+}
+
+function getCustomPortDisplayName(
+	labels: Record<IndexKey, string>,
+	idx: IndexKey,
+	index: number,
+	kind: 'input' | 'output'
+): string {
+	const customLabel = labels[idx]?.trim()
+	if (customLabel) return customLabel
+	return kind === 'input' ? getInputDisplayName(index) : getOutputDisplayName(index)
 }
 
 function extractPythonCode(text: string): string {

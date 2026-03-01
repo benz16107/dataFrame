@@ -33,9 +33,11 @@ body {
 }
 
 .NodeShape {
+	--node-type-border: rgba(15, 23, 42, 0.22);
 	border-radius: var(--tl-radius-3);
 	background: var(--tl-color-panel);
 	box-shadow: var(--node-shadow-border);
+	border: 2px solid var(--node-type-border);
 	width: 100%;
 	height: 100%;
 	display: flex;
@@ -65,6 +67,15 @@ body {
 		white-space: nowrap;
 	}
 
+	.NodeShape-typeDot {
+		width: 10px;
+		height: 10px;
+		border-radius: 999px;
+		background: var(--node-type-border);
+		box-shadow: 0 0 0 1px color-mix(in srgb, var(--node-type-border) 45%, white 55%);
+		flex: 0 0 auto;
+	}
+
 	.NodeShape-body {
 		flex: 1 1 auto;
 		min-width: 0;
@@ -89,6 +100,58 @@ body {
 			0 2px 6px rgba(0, 0, 0, 0.08),
 			0 1px 2px rgba(0, 0, 0, 0.04);
 	}
+}
+
+.NodeShape_type-code {
+	--node-type-border: #7da6f8;
+}
+
+.NodeShape_type-gemini {
+	--node-type-border: #b089f7;
+}
+
+.NodeShape_type-plot {
+	--node-type-border: #6fc9de;
+}
+
+.NodeShape_type-output {
+	--node-type-border: #73c9bf;
+}
+
+.NodeShape_type-textOutput {
+	--node-type-border: #78bbde;
+}
+
+.NodeShape_type-numberOutput {
+	--node-type-border: #8aa6f2;
+}
+
+.NodeShape_type-add {
+	--node-type-border: #7ecf97;
+}
+
+.NodeShape_type-subtract {
+	--node-type-border: #e2bd72;
+}
+
+.NodeShape_type-multiply {
+	--node-type-border: #eea070;
+}
+
+.NodeShape_type-divide {
+	--node-type-border: #eb8f8f;
+}
+
+.NodeShape_type-conditional {
+	--node-type-border: #cf86d8;
+}
+
+.NodeShape_type-slider {
+	--node-type-border: #7acaf0;
+}
+
+.NodeShape_type-earthquake {
+	--node-type-border: #d59d79;
 }
 
 .NodeShape input,
@@ -483,6 +546,37 @@ body {
 	}
 }
 
+.CodeNode-inline-rename {
+	width: 18px;
+	height: 18px;
+	border: 1px solid var(--tl-color-muted-2);
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-2);
+	border-radius: 6px;
+	padding: 0;
+	font-size: 10px;
+	line-height: 1;
+	font-weight: 600;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	transition: transform 0.04s ease, border-color 0.08s ease, color 0.08s ease;
+
+	[data-state='select.idle'] & {
+		pointer-events: all;
+	}
+}
+
+.CodeNode-inline-rename:hover {
+	border-color: var(--tl-color-selected);
+	color: var(--tl-color-text-1);
+}
+
+.CodeNode-inline-rename:active {
+	transform: translateY(1px) scale(0.96);
+}
+
 .CodeNode-inline-remove:hover {
 	border-color: var(--tl-color-selected);
 	color: var(--tl-color-text-1);
@@ -610,6 +704,89 @@ body {
 .NodeCopyButton:disabled {
 	opacity: 0.5;
 	cursor: not-allowed;
+}
+
+.NodeRenameDialog-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 120;
+	background: rgba(15, 23, 42, 0.28);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 12px;
+}
+
+.NodeRenameDialog {
+	width: min(320px, 92vw);
+	border-radius: 12px;
+	border: 1px solid var(--tl-color-muted-2);
+	background: var(--tl-color-panel);
+	box-shadow: 0 18px 38px rgba(15, 23, 42, 0.26);
+	padding: 12px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	box-sizing: border-box;
+}
+
+.NodeRenameDialog-title {
+	font-size: 12px;
+	font-weight: 600;
+	color: var(--tl-color-text-1);
+}
+
+.NodeRenameDialog-input {
+	width: 100%;
+	border: 1px solid var(--tl-color-muted-2);
+	border-radius: 8px;
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-1);
+	padding: 8px 10px;
+	font-size: 12px;
+	line-height: 1.2;
+	box-sizing: border-box;
+	outline: none;
+}
+
+.NodeRenameDialog-input:focus {
+	border-color: var(--tl-color-selected);
+}
+
+.NodeRenameDialog-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+}
+
+.NodeRenameDialog-btn {
+	border-radius: 8px;
+	border: 1px solid var(--tl-color-muted-2);
+	padding: 6px 10px;
+	font-size: 11px;
+	line-height: 1.2;
+	font-weight: 600;
+	cursor: pointer;
+}
+
+.NodeRenameDialog-btn--ghost {
+	background: var(--tl-color-panel);
+	color: var(--tl-color-text-2);
+}
+
+.NodeRenameDialog-btn--ghost:hover {
+	border-color: var(--tl-color-selected);
+	color: var(--tl-color-text-1);
+}
+
+.NodeRenameDialog-btn--primary {
+	background: var(--tl-color-selected);
+	border-color: var(--tl-color-selected);
+	color: #fff;
+}
+
+.NodeRenameDialog-btn--primary:hover {
+	filter: brightness(0.95);
 }
 
 .CodeNode-editor {
@@ -1133,8 +1310,8 @@ body {
 	flex: 1 1 auto;
 	height: 100%;
 	min-height: 0;
-	gap: var(--tl-space-3);
-	padding: var(--tl-space-2) var(--tl-space-3) var(--tl-space-3);
+	gap: var(--tl-space-2);
+	padding: var(--tl-space-2);
 	pointer-events: all;
 	overflow: hidden;
 	box-sizing: border-box;
@@ -1209,10 +1386,6 @@ body {
 
 .GeminiNodeSimple-card,
 .GeminiNodeSimple-panel {
-	border: 1px solid var(--tl-color-muted-2);
-	border-radius: var(--tl-radius-3);
-	background: var(--tl-color-panel);
-	padding: var(--tl-space-3);
 	pointer-events: all;
 	box-sizing: border-box;
 	min-width: 0;
@@ -1222,7 +1395,7 @@ body {
 .GeminiNodeSimple-card {
 	display: flex;
 	flex-direction: column;
-	gap: var(--tl-space-1);
+	gap: var(--tl-space-2);
 	width: 100%;
 }
 
@@ -1257,72 +1430,32 @@ body {
 
 .GeminiNodeSimple-prompt {
 	width: 100%;
-	height: 108px;
-	min-height: 108px;
-	max-height: 108px;
+	height: 78px;
+	min-height: 78px;
+	max-height: 78px;
 	resize: none;
 	font: inherit;
-	font-size: 12px;
-	line-height: 1.35;
-	border: 0;
-	outline: none;
-	background: transparent;
-	padding: 0;
 	pointer-events: all;
 	user-select: text;
 	overflow-y: auto;
 }
 
 .GeminiNodeSimple-actions {
-	display: flex;
-	gap: var(--tl-space-2);
 	justify-content: flex-end;
 	pointer-events: all;
-	padding: 0 var(--tl-space-1);
-}
-
-.GeminiNodeSimple-btn {
-	padding: 6px 12px;
-	border-radius: var(--tl-radius-2);
-	font-size: 11px;
-	line-height: 1.2;
-	cursor: pointer;
-	border: 1px solid var(--tl-color-muted-2);
-	pointer-events: all;
-}
-
-.GeminiNodeSimple-btn--secondary {
-	background: var(--tl-color-muted-0);
-	color: var(--tl-color-text-2);
-}
-
-.GeminiNodeSimple-btn--primary {
-	background: var(--tl-color-panel);
-	color: var(--tl-color-text);
-}
-
-.GeminiNodeSimple-btn:disabled {
-	opacity: 0.65;
-	cursor: not-allowed;
+	padding: 0 var(--tl-space-2);
 }
 
 .GeminiNodeSimple-panel {
-	padding: var(--tl-space-2) var(--tl-space-3);
-	background: var(--tl-color-muted-0);
 	display: flex;
 	flex-direction: column;
 	flex: 1 1 0;
 	min-height: 0;
-	gap: var(--tl-space-1);
+	max-height: 180px;
+	overflow: hidden;
 }
 
 .GeminiNodeSimple-panelTitle {
-	font-size: 10px;
-	line-height: 1.2;
-	letter-spacing: 0.02em;
-	text-transform: uppercase;
-	color: var(--tl-color-text-2);
-	font-weight: 600;
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -1331,18 +1464,19 @@ body {
 
 .GeminiNodeSimple-panelBody {
 	flex: 1 1 auto;
-	min-height: 76px;
-	max-height: none;
+	min-height: 88px;
+	max-height: 132px;
 	overflow-y: auto;
 	overscroll-behavior: contain;
 	font-size: 12px;
-	line-height: 1.38;
-	color: var(--tl-color-text-2);
+	line-height: 1.35;
+	color: var(--tl-color-text-1);
 	white-space: pre-wrap;
 	word-break: break-word;
 	user-select: text !important;
 	-webkit-user-select: text !important;
 	cursor: text;
+	padding-bottom: var(--tl-space-2);
 
 	[data-state='select.idle'] & {
 		pointer-events: all;

@@ -1,5 +1,5 @@
 import classNames from 'classnames'
-import { MouseEvent, PointerEvent, useCallback, useRef, useState } from 'react'
+import { KeyboardEvent, MouseEvent, PointerEvent, useCallback, useRef, useState } from 'react'
 import {
 	Editor,
 	T,
@@ -401,6 +401,91 @@ export function CopyTextButton({
 		>
 			{copied ? 'Copied' : 'Copy'}
 		</button>
+	)
+}
+
+export function PortRenameDialog({
+	isOpen,
+	title,
+	value,
+	onChange,
+	onCancel,
+	onSave,
+}: {
+	isOpen: boolean
+	title: string
+	value: string
+	onChange: (value: string) => void
+	onCancel: () => void
+	onSave: () => void
+}) {
+	const stopPointer = useCallback((event: PointerEvent<HTMLElement>) => {
+		event.stopPropagation()
+	}, [])
+
+	const stopMouse = useCallback((event: MouseEvent<HTMLElement>) => {
+		event.stopPropagation()
+	}, [])
+
+	const handleKeyDown = useCallback((event: KeyboardEvent<HTMLInputElement>) => {
+		event.stopPropagation()
+		if (event.key === 'Enter') {
+			event.preventDefault()
+			onSave()
+			return
+		}
+		if (event.key === 'Escape') {
+			event.preventDefault()
+			onCancel()
+		}
+	}, [onCancel, onSave])
+
+	if (!isOpen) return null
+
+	return (
+		<div
+			className="NodeRenameDialog-backdrop"
+			onPointerDown={(event) => {
+				event.stopPropagation()
+				onCancel()
+			}}
+			onClick={stopMouse}
+		>
+			<div
+				className="NodeRenameDialog"
+				onPointerDown={stopPointer}
+				onClick={stopMouse}
+			>
+				<div className="NodeRenameDialog-title">{title}</div>
+				<input
+					autoFocus
+					className="NodeRenameDialog-input"
+					value={value}
+					onChange={(event) => onChange(event.target.value)}
+					onPointerDown={stopPointer}
+					onKeyDown={handleKeyDown}
+					placeholder="Enter name"
+				/>
+				<div className="NodeRenameDialog-actions">
+					<button
+						type="button"
+						className="NodeRenameDialog-btn NodeRenameDialog-btn--ghost"
+						onPointerDown={stopPointer}
+						onClick={onCancel}
+					>
+						Cancel
+					</button>
+					<button
+						type="button"
+						className="NodeRenameDialog-btn NodeRenameDialog-btn--primary"
+						onPointerDown={stopPointer}
+						onClick={onSave}
+					>
+						Save
+					</button>
+				</div>
+			</div>
+		</div>
 	)
 }
 
