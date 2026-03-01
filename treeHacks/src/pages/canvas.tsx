@@ -1,7 +1,10 @@
 import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
-import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, getSnapshot, useEditor, useValue } from "tldraw";
+// 1. ADDED createShapeId to the tldraw imports
+import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, getSnapshot, useEditor, useValue, createShapeId } from "tldraw";
 import "tldraw/tldraw.css";
 import { CodeBlockUtil, CodeBlockTool } from "../shapes/CodeBlock";
+// 2. ADDED BOT IMPORTS
+import { BotShapeUtil, BotShapeTool } from '../shapes/bot'
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   clearPendingCanvasImport,
@@ -27,58 +30,56 @@ import { disableTransparency } from '../disableTransparency.tsx'
 import { NodeShapeUtil } from '../nodes/NodeShapeUtil'
 import { PointingPort } from '../ports/PointingPort'
 
-const customTools = [CodeBlockTool]
-
-// Define custom shape utilities that extend tldraw's shape system
-const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil]
-// Define binding utilities that handle relationships between shapes
+// 3. ADDED BOT TO ARRAYS
+const customTools = [CodeBlockTool, BotShapeTool]
+const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil, BotShapeUtil]
 const bindingUtils = [ConnectionBindingUtil]
 
 // Customize tldraw's UI components to add workflow-specific functionality
 const components: TLComponents = {
-	InFrontOfTheCanvas: () => (
-		<>
-			<OnCanvasComponentPicker />
-			<WorkflowRegions />
-		</>
-	),
-	Toolbar: () => (
-		<>
-			<WorkflowToolbar />
-			<div className="tlui-main-toolbar tlui-main-toolbar--horizontal">
-				<TldrawUiToolbar className="tlui-main-toolbar__tools" label="Actions">
-					<DefaultQuickActions />
-					<DefaultActionsMenu />
-				</TldrawUiToolbar>
-			</div>
-		</>
-	),
+  InFrontOfTheCanvas: () => (
+    <>
+      <OnCanvasComponentPicker />
+      <WorkflowRegions />
+    </>
+  ),
+  Toolbar: () => (
+    <>
+      <WorkflowToolbar />
+      <div className="tlui-main-toolbar tlui-main-toolbar--horizontal">
+        <TldrawUiToolbar className="tlui-main-toolbar__tools" label="Actions">
+          <DefaultQuickActions />
+          <DefaultActionsMenu />
+        </TldrawUiToolbar>
+      </div>
+    </>
+  ),
 
-	MenuPanel: () => null,
-	StylePanel: () => {
-		const editor = useEditor()
-		const shouldShowStylePanel = useValue(
-			'shouldShowStylePanel',
-			() => {
-				return (
-					!editor.isIn('select') ||
-					editor.getSelectedShapes().some((s) => s.type !== 'node' && s.type !== 'connection')
-				)
-			},
-			[editor]
-		)
-		if (!shouldShowStylePanel) return
+  MenuPanel: () => null,
+  StylePanel: () => {
+    const editor = useEditor()
+    const shouldShowStylePanel = useValue(
+      'shouldShowStylePanel',
+      () => {
+        return (
+          !editor.isIn('select') ||
+          editor.getSelectedShapes().some((s) => s.type !== 'node' && s.type !== 'connection')
+        )
+      },
+      [editor]
+    )
+    if (!shouldShowStylePanel) return
     return (
       <div className="canvas-style-panel-anchor">
         <DefaultStylePanel />
       </div>
     )
-	},
+  },
 }
 
 const options: Partial<TldrawOptions> = {
-	actionShortcutsLocation: 'menu',
-	maxPages: 1,
+  actionShortcutsLocation: 'menu',
+  maxPages: 1,
 }
 
 const backgroundOptions: Array<{ id: CanvasBackgroundPreset; label: string }> = [
@@ -561,6 +562,25 @@ export default function CanvasPage() {
         >
           Clear Canvas
         </button>
+
+        {/* 4. THE MAGIC INSTANT-SPAWN BOT BUTTON */}
+        <button 
+          onClick={() => {
+            if (editorRef.current) {
+              editorRef.current.createShapes([{
+                id: createShapeId(),
+                type: 'bot-shape',
+                x: window.innerWidth / 2 - 175,
+                y: window.innerHeight / 2 - 225,
+              }]);
+              editorRef.current.setCurrentTool('select');
+            }
+          }} 
+          className="dash-btn dash-btn-outline"
+        >
+          Add Bot
+        </button>
+
         <button
           onClick={() => setIsOptionsOpen((open) => !open)}
           className="dash-btn dash-btn-outline"
