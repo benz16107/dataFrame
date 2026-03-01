@@ -469,7 +469,7 @@ export default function DashboardPage() {
       <div className="dash-glow" />
       <header className="dash-header">
         <div className="dash-brand">
-          <div className="dash-mark">Df</div>
+          <div className="dash-mark">DF</div>
           <div>
             <h1 className="dash-title">Dataframe</h1>
           </div>
