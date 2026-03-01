@@ -333,18 +333,6 @@ export default function DashboardPage() {
             <button onClick={openCreateModal} className="dash-btn dash-btn-primary" disabled={isCreating}>
               Create Canvas
             </button>
-            <button
-              onClick={() => {
-                const latest = canvases[0];
-                if (latest?.id) {
-                  navigate(`/canvas?id=${latest.id}`);
-                }
-              }}
-              className="dash-btn dash-btn-outline"
-              disabled={canvases.length === 0}
-            >
-              Open Latest
-            </button>
           </div>
         </div>
         <div className="dash-hero-card">

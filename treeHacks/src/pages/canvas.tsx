@@ -3,8 +3,8 @@ import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePa
 import "tldraw/tldraw.css";
 import { CodeBlockUtil, CodeBlockTool } from "../shapes/CodeBlock";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { touchCanvas, upsertCanvas } from "../lib/canvasStore";
-import { getApiBaseUrl, getLogoutUrl, logoutSession } from '../lib/auth'
+import { touchCanvas, upsertCanvas } from "@/lib/canvasStore";
+import { getApiBaseUrl } from '../lib/auth'
 const API_BASE = getApiBaseUrl();
 
 
@@ -217,19 +217,6 @@ export default function CanvasPage() {
     editorRef.current?.setCurrentTool("code-block");
   };
 
-    const signOut = async () => {
-      try {
-        await logoutSession()
-      } catch (error) {
-        console.error('Error signing out:', error)
-        window.location.assign(getLogoutUrl('/dashboard'))
-        return
-      }
-
-      navigate('/dashboard', { replace: true })
-    }
-
-
   if (!activeCanvasId) {
     return (
       <div className="app-shell">
@@ -277,13 +264,10 @@ export default function CanvasPage() {
                 disableTransparency(editor, ['node', 'connection'])
             }}
         />
-        <div className='canvas-top-actions'>
-          <button onClick={signOut} className='dash-btn dash-btn-ghost'>Sign out</button>
-        </div>
-      <div className="canvas-bottom-actions">
+      <div className="canvas-action-bar">
         <button
           onClick={() => navigate("/dashboard")}
-          className="dash-btn dash-btn-primary"
+          className="dash-btn dash-btn-ghost"
         >
           Back to Dashboard
         </button>
@@ -295,7 +279,7 @@ export default function CanvasPage() {
         </button>
         <button
           onClick={exportShapes}
-          className="dash-btn dash-btn-outline"
+          className="dash-btn dash-btn-primary"
         >
           Save
         </button>
