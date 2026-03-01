@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const [allCanvases, setAllCanvases] = useState<CanvasMeta[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"all" | "recent">("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
@@ -104,12 +104,13 @@ export default function DashboardPage() {
     };
   }, []);
 
-  const canvases = useMemo(() => {
-    if (filter === "recent") return allCanvases.slice(0, 3);
-    return allCanvases;
-  }, [allCanvases, filter]);
-
   const normalizeName = (value: string) => value.trim().toLowerCase();
+
+  const canvases = useMemo(() => {
+    const normalizedQuery = searchQuery.trim().toLowerCase();
+    if (!normalizedQuery) return allCanvases;
+    return allCanvases.filter((canvas) => canvas.name.toLowerCase().includes(normalizedQuery));
+  }, [allCanvases, searchQuery]);
 
   const handleLogIn = () => {
     window.location.href = getLoginUrl("/dashboard");
@@ -199,7 +200,7 @@ export default function DashboardPage() {
     const trimmed = createNameInput.trim();
     const finalName = trimmed || "Untitled Canvas";
 
-    const duplicate = canvases.some((canvas) => normalizeName(canvas.name) === normalizeName(finalName));
+    const duplicate = allCanvases.some((canvas) => normalizeName(canvas.name) === normalizeName(finalName));
     if (duplicate) {
       setCreateNameError("That name already exists. Please choose a unique name.");
       return;
@@ -230,7 +231,7 @@ export default function DashboardPage() {
       setNameError("Name cannot be empty.");
       return;
     }
-    const duplicate = canvases.some(
+    const duplicate = allCanvases.some(
       (c) => c.id !== canvas.id && normalizeName(c.name) === normalizeName(trimmed)
     );
     if (duplicate) {
@@ -371,21 +372,14 @@ export default function DashboardPage() {
 
       <section className="dash-section">
         <div className="dash-section-header">
-          <h3>Recent Canvases</h3>
-          <div className="dash-filters">
-            <button
-              className={`dash-pill ${filter === "all" ? "is-active" : ""}`}
-              onClick={() => setFilter("all")}
-            >
-              All
-            </button>
-            <button
-              className={`dash-pill ${filter === "recent" ? "is-active" : ""}`}
-              onClick={() => setFilter("recent")}
-            >
-              Recent
-            </button>
-          </div>
+          <h3>Canvases</h3>
+          <input
+            className="dash-search"
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+            placeholder="Search canvases"
+            aria-label="Search canvases"
+          />
         </div>
 
         <div className="dash-grid">
@@ -393,16 +387,20 @@ export default function DashboardPage() {
             <article className="dash-card">
               <div className="dash-card-top">
                 <span className={`dash-status ${statusStyles[0]}`}>empty</span>
-                <span className="dash-muted">no canvases yet</span>
+                <span className="dash-muted">{allCanvases.length === 0 ? "no canvases yet" : "no matches"}</span>
               </div>
-              <h4 className="dash-card-name">Start your first canvas</h4>
+              <h4 className="dash-card-name">{allCanvases.length === 0 ? "Start your first canvas" : "No canvases found"}</h4>
               <p className="dash-card-sub">
-                Create a new canvas to see it appear here for quick access.
+                {allCanvases.length === 0
+                  ? "Create a new canvas to see it appear here for quick access."
+                  : "Try a different search term to find your canvas."}
               </p>
               <div className="dash-card-actions">
-                <button onClick={openCreateModal} className="dash-btn dash-btn-outline" disabled={isCreating}>
-                  Create Canvas
-                </button>
+                {allCanvases.length === 0 ? (
+                  <button onClick={openCreateModal} className="dash-btn dash-btn-outline" disabled={isCreating}>
+                    Create Canvas
+                  </button>
+                ) : null}
               </div>
             </article>
           ) : (

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, useEditor, useValue } from "tldraw";
 import "tldraw/tldraw.css";
 import { CodeBlockUtil, CodeBlockTool } from "../shapes/CodeBlock";
@@ -59,7 +59,11 @@ const components: TLComponents = {
 			[editor]
 		)
 		if (!shouldShowStylePanel) return
-		return <DefaultStylePanel />
+    return (
+      <div className="canvas-style-panel-anchor">
+        <DefaultStylePanel />
+      </div>
+    )
 	},
 }
 
@@ -70,6 +74,8 @@ const options: Partial<TldrawOptions> = {
 
 export default function CanvasPage() {
   const saveFeedbackTimerRef = useRef<number | null>(null)
+  const isSavingRef = useRef(false)
+  const lastSavedShapesRef = useRef<string | null>(null)
 
     async function fetchData(url: string) {
         try {
@@ -93,7 +99,7 @@ export default function CanvasPage() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [activeCanvasId, setActiveCanvasId] = useState<string | null>(null);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error" | "autosaving" | "autosaved" | "autoerror">("idle");
 
   const canvasId = searchParams.get("id");
   useEffect(() => {
@@ -142,8 +148,10 @@ export default function CanvasPage() {
       if (shapeData && shapeData.length > 0) {
         const shapes = shapeData.map((s: { data: object }) => s.data);
         editorRef.current.createShapes(shapes);
+        lastSavedShapesRef.current = JSON.stringify(shapes, null, 2)
       } else {
         editorRef.current.createShape({ type: 'node', x: 200, y: 200 });
+        lastSavedShapesRef.current = null
       }
     });
   };
@@ -165,55 +173,96 @@ export default function CanvasPage() {
     }
   }, [])
 
-  const exportShapes = () => {
-    if (!editorRef.current || !activeCanvasId) return;
-    setSaveState("saving")
+  const persistShapes = useCallback(async (canvasIdToSave: string, showFeedback: boolean) => {
+    if (!editorRef.current || isSavingRef.current) return;
 
-    if (saveFeedbackTimerRef.current !== null) {
-      window.clearTimeout(saveFeedbackTimerRef.current)
-      saveFeedbackTimerRef.current = null
-    }
-
-    // Get all shapes on current page
     const shapes = editorRef.current.getCurrentPageShapes();
-
-    // Serialize to JSON
     const json = JSON.stringify(shapes, null, 2);
 
-    const apiUrl = `${API_BASE}/canvas/${activeCanvasId}/shapes`;
-    fetch(apiUrl, {
-      method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: json,
-    })
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        return response.json();
+    if (!showFeedback && lastSavedShapesRef.current === json) {
+      return;
+    }
+
+    isSavingRef.current = true
+
+    if (showFeedback) {
+      setSaveState("saving")
+      if (saveFeedbackTimerRef.current !== null) {
+        window.clearTimeout(saveFeedbackTimerRef.current)
+        saveFeedbackTimerRef.current = null
+      }
+    } else {
+      setSaveState("autosaving")
+    }
+
+    try {
+      const apiUrl = `${API_BASE}/canvas/${canvasIdToSave}/shapes`;
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: json,
       })
-      .then((data) => {
-        console.log("Shapes successfully saved:", data);
-        touchCanvas(activeCanvasId);
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+
+      await response.json()
+      touchCanvas(canvasIdToSave)
+      lastSavedShapesRef.current = json
+
+      if (showFeedback) {
         setSaveState("saved")
         saveFeedbackTimerRef.current = window.setTimeout(() => {
           setSaveState("idle")
           saveFeedbackTimerRef.current = null
         }, 2000)
-      })
-      .catch((error) => {
-        console.error("Error saving shapes:", error);
+      } else {
+        setSaveState("autosaved")
+        saveFeedbackTimerRef.current = window.setTimeout(() => {
+          setSaveState("idle")
+          saveFeedbackTimerRef.current = null
+        }, 1500)
+      }
+    } catch (error) {
+      console.error("Error saving shapes:", error)
+      if (showFeedback) {
         setSaveState("error")
         saveFeedbackTimerRef.current = window.setTimeout(() => {
           setSaveState("idle")
           saveFeedbackTimerRef.current = null
         }, 3000)
-      });
-    console.log(json);
-  };
+      } else {
+        setSaveState("autoerror")
+        saveFeedbackTimerRef.current = window.setTimeout(() => {
+          setSaveState("idle")
+          saveFeedbackTimerRef.current = null
+        }, 3000)
+      }
+    } finally {
+      isSavingRef.current = false
+    }
+  }, [])
+
+  const exportShapes = () => {
+    if (!activeCanvasId) return
+    void persistShapes(activeCanvasId, true)
+  }
+
+  useEffect(() => {
+    if (!activeCanvasId) return
+
+    const intervalId = window.setInterval(() => {
+      void persistShapes(activeCanvasId, false)
+    }, 2500)
+
+    return () => {
+      window.clearInterval(intervalId)
+    }
+  }, [activeCanvasId, persistShapes])
 
   // on save, post TLShapes to API
 
@@ -274,14 +323,20 @@ export default function CanvasPage() {
         <button
           onClick={exportShapes}
           className="dash-btn dash-btn-primary"
-          disabled={saveState === "saving"}
+          disabled={saveState === "saving" || saveState === "autosaving"}
         >
           {saveState === "saving"
             ? "Saving..."
+            : saveState === "autosaving"
+              ? "Auto-saving..."
             : saveState === "saved"
               ? "Saved"
+              : saveState === "autosaved"
+                ? "Auto-saved"
               : saveState === "error"
                 ? "Save failed"
+                : saveState === "autoerror"
+                  ? "Auto-save failed"
                 : "Save"}
         </button>
       </div>

@@ -3,13 +3,11 @@ import {
 	NODE_HEADER_HEIGHT_PX,
 	NODE_ROW_HEADER_GAP_PX,
 	NODE_ROW_HEIGHT_PX,
-	NODE_WIDTH_PX,
 } from '../../constants'
 import { Port, ShapePort } from '../../ports/Port'
 import { getNodeInputPortValues } from '../nodePorts'
 import { NodeShape } from '../NodeShapeUtil'
 import {
-	areAnyInputsOutOfDate,
 	ExecutionResult,
 	InfoValues,
 	InputValues,
@@ -87,7 +85,7 @@ export class OutputNodeDefinition extends NodeDefinition<OutputNode> {
 		return {}
 	}
 
-	getOutputInfo(_shape: NodeShape, _node: OutputNode, inputs: InfoValues): InfoValues {
+	getOutputInfo(_shape: NodeShape, _node: OutputNode, _inputs: InfoValues): InfoValues {
 		// No outputs
 		return {}
 	}
