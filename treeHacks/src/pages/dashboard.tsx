@@ -1,4 +1,4 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { loadCanvases, removeCanvas, upsertCanvas } from "@/lib/canvasStore";
 import { fetchProfile, getApiBaseUrl, getLoginUrl, getLogoutUrl, logoutSession } from "@/lib/auth";
@@ -30,6 +30,10 @@ export default function DashboardPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [nameError, setNameError] = useState<string | null>(null);
+  const [openActionsId, setOpenActionsId] = useState<string | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [createNameInput, setCreateNameInput] = useState("");
+  const [createNameError, setCreateNameError] = useState<string | null>(null);
   const navigate = useNavigate();
   const apiBase = getApiBaseUrl();
 
@@ -127,7 +131,7 @@ export default function DashboardPage() {
     navigate("/dashboard", { replace: true });
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (canvasName: string) => {
     setCreateError(null);
     setIsCreating(true);
 
@@ -142,7 +146,7 @@ export default function DashboardPage() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: "Untitled Canvas" }),
+        body: JSON.stringify({ name: canvasName }),
       });
 
       if (response.status === 401 || response.status === 403) {
@@ -159,7 +163,7 @@ export default function DashboardPage() {
       if (data?.id) {
         const newCanvas: CanvasMeta = {
           id: data.id,
-          name: data.name ?? "Untitled Canvas",
+          name: data.name ?? canvasName,
           updatedAt: new Date().toISOString(),
         };
         upsertCanvas(newCanvas);
@@ -177,10 +181,39 @@ export default function DashboardPage() {
     }
   };
 
+  const openCreateModal = () => {
+    setCreateNameInput("");
+    setCreateNameError(null);
+    setIsCreateModalOpen(true);
+  };
+
+  const closeCreateModal = () => {
+    if (isCreating) return;
+    setIsCreateModalOpen(false);
+    setCreateNameError(null);
+  };
+
+  const submitCreateCanvas = async () => {
+    const trimmed = createNameInput.trim();
+    const finalName = trimmed || "Untitled Canvas";
+
+    const duplicate = canvases.some((canvas) => normalizeName(canvas.name) === normalizeName(finalName));
+    if (duplicate) {
+      setCreateNameError("That name already exists. Please choose a unique name.");
+      return;
+    }
+
+    await handleCreate(finalName);
+    setIsCreateModalOpen(false);
+    setCreateNameInput("");
+    setCreateNameError(null);
+  };
+
   const startEdit = (canvas: CanvasMeta) => {
     setEditingId(canvas.id);
     setNameInput(canvas.name);
     setNameError(null);
+    setOpenActionsId(null);
   };
 
   const cancelEdit = () => {
@@ -224,6 +257,7 @@ export default function DashboardPage() {
   };
 
   const handleDelete = async (canvas: CanvasMeta) => {
+    setOpenActionsId(null);
     const shouldDelete = window.confirm(`Delete "${canvas.name}"?`);
     if (!shouldDelete) return;
 
@@ -282,9 +316,6 @@ export default function DashboardPage() {
               </button>
             </>
           )}
-          <button onClick={handleCreate} className="dash-btn dash-btn-primary" disabled={isCreating}>
-            {isCreating ? "Creating..." : "New Canvas"}
-          </button>
           <button className="dash-btn dash-btn-ghost">Import</button>
         </div>
       </header>
@@ -299,8 +330,8 @@ export default function DashboardPage() {
             previous canvas or start a fresh one in seconds.
           </p>
           <div className="dash-hero-cta">
-            <button onClick={handleCreate} className="dash-btn dash-btn-primary" disabled={isCreating}>
-              {isCreating ? "Creating..." : "Create Canvas"}
+            <button onClick={openCreateModal} className="dash-btn dash-btn-primary" disabled={isCreating}>
+              Create Canvas
             </button>
             <button
               onClick={() => {
@@ -366,14 +397,30 @@ export default function DashboardPage() {
                 Create a new canvas to see it appear here for quick access.
               </p>
               <div className="dash-card-actions">
-                <button onClick={handleCreate} className="dash-btn dash-btn-outline" disabled={isCreating}>
+                <button onClick={openCreateModal} className="dash-btn dash-btn-outline" disabled={isCreating}>
                   Create Canvas
                 </button>
               </div>
             </article>
           ) : (
             canvases.map((canvas, index) => (
-              <article key={canvas.id} className="dash-card">
+              <article
+                key={canvas.id}
+                className={`dash-card ${editingId === canvas.id ? "" : "dash-card-clickable"}`}
+                role={editingId === canvas.id ? undefined : "button"}
+                tabIndex={editingId === canvas.id ? undefined : 0}
+                onClick={() => {
+                  if (editingId === canvas.id) return;
+                  navigate(`/canvas?id=${canvas.id}`);
+                }}
+                onKeyDown={(event) => {
+                  if (editingId === canvas.id) return;
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    navigate(`/canvas?id=${canvas.id}`);
+                  }
+                }}
+              >
                 <div className="dash-card-top">
                   <span className={`dash-status ${statusStyles[index % statusStyles.length]}`}>
                     saved
@@ -406,10 +453,7 @@ export default function DashboardPage() {
                 ) : (
                   <h4 className="dash-card-name">{canvas.name}</h4>
                 )}
-                <div className="dash-card-actions">
-                  <Link to={`/canvas?id=${canvas.id}`} className="dash-btn dash-btn-outline">
-                    Open
-                  </Link>
+                <div className="dash-card-actions" onClick={(event) => event.stopPropagation()}>
                   {editingId === canvas.id ? (
                     <>
                       <button className="dash-btn dash-btn-primary" onClick={() => saveName(canvas)}>
@@ -420,29 +464,28 @@ export default function DashboardPage() {
                       </button>
                     </>
                   ) : (
-                    <select
-                      className="dash-btn dash-btn-ghost"
-                      defaultValue=""
-                      onChange={(event) => {
-                        const action = event.target.value;
-                        event.target.value = "";
-
-                        if (action === "rename") {
-                          startEdit(canvas);
-                          return;
-                        }
-
-                        if (action === "delete") {
-                          void handleDelete(canvas);
-                        }
-                      }}
-                    >
-                      <option value="" disabled>
+                    <div className="dash-dropdown">
+                      <button
+                        className="dash-btn dash-btn-ghost dash-btn-dropdown"
+                        onClick={() => {
+                          setOpenActionsId((prev) => (prev === canvas.id ? null : canvas.id));
+                        }}
+                        aria-expanded={openActionsId === canvas.id}
+                        aria-haspopup="menu"
+                      >
                         Actions
-                      </option>
-                      <option value="rename">Rename</option>
-                      <option value="delete">Delete</option>
-                    </select>
+                      </button>
+                      {openActionsId === canvas.id ? (
+                        <div className="dash-dropdown-menu" role="menu">
+                          <button className="dash-dropdown-item" role="menuitem" onClick={() => startEdit(canvas)}>
+                            Rename
+                          </button>
+                          <button className="dash-dropdown-item is-danger" role="menuitem" onClick={() => void handleDelete(canvas)}>
+                            Delete
+                          </button>
+                        </div>
+                      ) : null}
+                    </div>
                   )}
                 </div>
               </article>
@@ -450,6 +493,49 @@ export default function DashboardPage() {
           )}
         </div>
       </section>
+      {isCreateModalOpen ? (
+        <div className="dash-modal-backdrop" onClick={closeCreateModal}>
+          <div className="dash-modal" onClick={(event) => event.stopPropagation()}>
+            <h3 className="dash-modal-title">Create Canvas</h3>
+            <p className="dash-modal-subtitle">Choose a name for your new canvas.</p>
+            <label className="dash-modal-label" htmlFor="create-canvas-name">
+              Canvas name
+            </label>
+            <input
+              id="create-canvas-name"
+              className="dash-modal-input"
+              value={createNameInput}
+              onChange={(event) => {
+                setCreateNameInput(event.target.value);
+                setCreateNameError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  void submitCreateCanvas();
+                }
+                if (event.key === "Escape") {
+                  closeCreateModal();
+                }
+              }}
+              placeholder="Untitled Canvas"
+              autoFocus
+            />
+            {createNameError ? <p className="dash-modal-error">{createNameError}</p> : null}
+            <div className="dash-modal-actions">
+              <button className="dash-btn dash-btn-ghost" onClick={closeCreateModal} disabled={isCreating}>
+                Cancel
+              </button>
+              <button
+                className="dash-btn dash-btn-primary"
+                onClick={() => void submitCreateCanvas()}
+                disabled={isCreating}
+              >
+                {isCreating ? "Creating..." : "Create"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -19,7 +19,6 @@ import { NodeShapeUtil } from '../nodes/NodeShapeUtil'
 import { PointingPort } from '../ports/PointingPort'
 
 const customTools = [CodeBlockTool]
-const API_BASE_URL = getApiBaseUrl()
 
 // Define custom shape utilities that extend tldraw's shape system
 const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil]

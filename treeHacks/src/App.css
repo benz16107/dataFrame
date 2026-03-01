@@ -414,6 +414,21 @@
   gap: 0.8rem;
 }
 
+.dash-card-clickable {
+  cursor: pointer;
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease;
+}
+
+.dash-card-clickable:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.12);
+}
+
+.dash-card-clickable:focus-visible {
+  outline: 2px solid rgba(15, 23, 42, 0.35);
+  outline-offset: 2px;
+}
+
 .dash-card-top {
   display: flex;
   align-items: center;
@@ -457,4 +472,130 @@
   margin-top: auto;
   display: flex;
   gap: 0.6rem;
+}
+
+.dash-dropdown {
+  position: relative;
+}
+
+.dash-btn-dropdown {
+  gap: 0.45rem;
+}
+
+.dash-btn-dropdown::after {
+  content: "▾";
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.75;
+  transition: transform 150ms ease;
+}
+
+.dash-btn-dropdown[aria-expanded="true"]::after {
+  transform: rotate(180deg);
+}
+
+.dash-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  min-width: 140px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.16);
+  padding: 0.35rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  z-index: 20;
+}
+
+.dash-dropdown-item {
+  border: 0;
+  background: transparent;
+  text-align: left;
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 0.5rem 0.6rem;
+  font-size: 0.86rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.dash-dropdown-item:hover {
+  background: rgba(15, 23, 42, 0.08);
+}
+
+.dash-dropdown-item.is-danger {
+  color: #b91c1c;
+}
+
+.dash-dropdown-item.is-danger:hover {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+.dash-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  background: rgba(15, 23, 42, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.dash-modal {
+  width: min(460px, 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 24px 40px rgba(15, 23, 42, 0.24);
+  padding: 1.2rem;
+}
+
+.dash-modal-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #0f172a;
+}
+
+.dash-modal-subtitle {
+  margin: 0.35rem 0 0;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.dash-modal-label {
+  display: block;
+  margin-top: 0.95rem;
+  margin-bottom: 0.35rem;
+  font-size: 0.86rem;
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.dash-modal-input {
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  padding: 0.7rem 0.85rem;
+  background: white;
+  color: #0f172a;
+}
+
+.dash-modal-input:focus {
+  outline: 2px solid rgba(15, 23, 42, 0.2);
+  outline-offset: 1px;
+}
+
+.dash-modal-error {
+  margin: 0.55rem 0 0;
+  color: #b91c1c;
+  font-size: 0.84rem;
+}
+
+.dash-modal-actions {
+  margin-top: 1rem;
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
 }
