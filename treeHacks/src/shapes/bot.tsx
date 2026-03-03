@@ -9,6 +9,9 @@ import {
 import 'tldraw/tldraw.css'
 import type { Geometry2d, RecordProps, TLResizeInfo, TLShape } from 'tldraw'
 import { useState, useRef, useEffect } from 'react'
+import { getApiBaseUrl } from '../lib/auth'
+
+const API_BASE = getApiBaseUrl()
 
 const BOT_SHAPE_TYPE = 'bot-shape'
 
@@ -46,7 +49,7 @@ function ChatbotUI() {
 
     try {
       // Call your FastAPI backend!
-      const response = await fetch('http://localhost:8000/api/chat', {
+      const response = await fetch(`${API_BASE}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userText })

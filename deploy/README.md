@@ -2,6 +2,8 @@
 
 This folder contains the manifests and Dockerfiles needed to deploy the project to Vultr Kubernetes Engine (VKE).
 
+> DigitalOcean App Platform path: see [deploy/digitalocean/README.md](digitalocean/README.md) and [.do/app.yaml](../.do/app.yaml).
+
 ## Required Files
 - `backend/Dockerfile`
 - `backend/main.py`

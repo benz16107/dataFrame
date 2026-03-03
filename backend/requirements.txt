@@ -4,3 +4,4 @@ python-dotenv
 auth0-fastapi
 itsdangerous
 google-genai
+psycopg[binary]
