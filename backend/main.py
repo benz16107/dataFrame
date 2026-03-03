@@ -348,15 +348,11 @@ def _extract_retry_after_seconds(error_text: str) -> int | None:
     return None
 
 
-database_url = os.getenv("DATABASE_URL")
+sqlite_file_name = os.getenv("SQLITE_FILE", "database.db")
+sqlite_url = f"sqlite:///{sqlite_file_name}"
 
-if database_url:
-    engine = create_engine(database_url, pool_pre_ping=True)
-else:
-    sqlite_file_name = os.getenv("SQLITE_FILE", "database.db")
-    sqlite_url = f"sqlite:///{sqlite_file_name}"
-    connect_args = {"check_same_thread": False}
-    engine = create_engine(sqlite_url, connect_args=connect_args)
+connect_args = {"check_same_thread": False}
+engine = create_engine(sqlite_url, connect_args=connect_args)
 
 
 def create_db_and_tables():
@@ -392,30 +388,6 @@ app = FastAPI(title="Auth0 FastAPI Example")
 frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
 
 
-def _normalize_origin(origin: str) -> str:
-    return origin.strip().rstrip("/")
-
-
-cors_allowed_origins_env = os.getenv("CORS_ALLOWED_ORIGINS")
-if cors_allowed_origins_env:
-    cors_allowed_origins = [
-        _normalize_origin(origin)
-        for origin in cors_allowed_origins_env.split(",")
-        if origin.strip()
-    ]
-else:
-    cors_allowed_origins = [
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-        _normalize_origin(frontend_base_url),
-    ]
-
-app_base_url = os.getenv("APP_BASE_URL", "http://localhost:8000")
-normalized_app_origin = _normalize_origin(app_base_url)
-if normalized_app_origin not in cors_allowed_origins:
-    cors_allowed_origins.append(normalized_app_origin)
-
-
 def _safe_frontend_path(next_path: str, fallback: str) -> str:
     if not next_path:
         return fallback
@@ -444,7 +416,10 @@ app.add_middleware(SessionMiddleware, secret_key=session_secret)
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_allowed_origins,
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
@@ -454,7 +429,7 @@ config = Auth0Config(
     domain=os.getenv("AUTH0_DOMAIN"),
     client_id=os.getenv("AUTH0_CLIENT_ID"),
     client_secret=os.getenv("AUTH0_CLIENT_SECRET"),
-    app_base_url=app_base_url,
+    app_base_url=os.getenv("APP_BASE_URL", "http://localhost:8000"),
     secret=session_secret,
     authorization_params={"scope": "openid profile email"},
 )

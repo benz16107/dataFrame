@@ -1,0 +1,49 @@
+services:
+  backend:
+    build:
+      context: ../../backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env.backend
+    volumes:
+      - sqlite_data:/data
+    networks:
+      - app
+
+  frontend:
+    build:
+      context: ../../treeHacks
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    restart: unless-stopped
+    networks:
+      - app
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    env_file:
+      - .env.backend
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - app
+
+volumes:
+  sqlite_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  app:
+    driver: bridge
