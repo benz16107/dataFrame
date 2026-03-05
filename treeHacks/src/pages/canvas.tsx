@@ -293,12 +293,18 @@ export default function CanvasPage() {
     fetchData(apiUrl).then((shapeData) => {
       if (!editorRef.current) return;
 
+      if (!shapeData || !Array.isArray(shapeData)) {
+        lastSavedShapesRef.current = null;
+        void updateCanvasPreview(id);
+        return;
+      }
+
       const existingShapeIds = editorRef.current.getCurrentPageShapes().map((shape) => shape.id);
       if (existingShapeIds.length > 0) {
         editorRef.current.deleteShapes(existingShapeIds);
       }
 
-      if (shapeData && shapeData.length > 0) {
+      if (shapeData.length > 0) {
         const snapshotFromStorage = extractSnapshotFromStoredShapes(shapeData as Array<{ data: unknown }> )
 
         if (snapshotFromStorage) {
