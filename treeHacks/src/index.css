@@ -285,13 +285,13 @@ body {
 		}
 	}
 
-	/* Output port (right): hit area to the right of node, dot at node edge */
+	/* Output port (right): hit area ends at node edge so it's not clipped (e.g. in CodeNode) */
 	&.Port_start {
-		left: 100%;
-		right: auto;
+		right: 0;
+		left: auto;
 		&::before {
-			left: 0;
-			right: auto;
+			right: 0;
+			left: auto;
 		}
 	}
 
