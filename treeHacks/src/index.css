@@ -235,37 +235,48 @@ body {
 	}
 }
 
+/* Port hit area is 28px for easier grabbing; visual dot stays 12px via ::before */
 .Port {
 	position: absolute;
-	width: 12px;
-	height: 12px;
+	width: 28px;
+	height: 28px;
 	border-radius: 50%;
-	background: var(--tl-color-panel);
+	background: transparent;
 	box-sizing: border-box;
 	z-index: 2;
-	box-shadow:
-		0 0 0 1px rgba(0, 0, 0, 0.04),
-		0 1px 3px rgba(0, 0, 0, 0.12);
 	flex: 0 0 auto;
 	transition: transform 0.05s ease-in-out;
+	cursor: crosshair;
 
 	[data-state='select.idle'] & {
 		pointer-events: all;
 	}
 
-	&.Port_hinting {
+	&::before {
+		content: '';
+		position: absolute;
+		inset: 8px;
+		border-radius: 50%;
+		background: var(--tl-color-panel);
+		box-shadow:
+			0 0 0 1px rgba(0, 0, 0, 0.04),
+			0 1px 3px rgba(0, 0, 0, 0.12);
+		transition: background 0.05s ease-in-out;
+	}
+
+	&.Port_hinting::before {
 		background: var(--tl-color-selected);
 	}
 
 	&.Port_end {
-		left: -6px;
+		left: -14px; /* center 28px hit area on node left edge */
 	}
 
 	&.Port_start {
-		right: -6px;
+		right: 2px; /* center 28px hit area on same point as original 12px dot (was right: -6) */
 	}
 
-	&.Port_eligible {
+	&.Port_eligible::before {
 		box-shadow:
 			0 0 0 calc(1px / var(--tl-zoom)) var(--tl-color-selected),
 			0 0 0 1px rgba(0, 0, 0, 0.04),

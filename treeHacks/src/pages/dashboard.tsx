@@ -10,6 +10,7 @@ import {
   type CanvasMeta,
 } from "@/lib/canvasStore";
 import { fetchProfile, getApiBaseUrl, getLoginUrl, getLogoutUrl, logoutSession } from "@/lib/auth";
+import { APP_TITLE, LOGO_URL } from "@/lib/brand";
 import { parseCanvasImportPayload, type ParsedCanvasImport } from "@/lib/canvasTransfer";
 
 type SortOption = "lastOpened" | "lastModified" | "dateCreated";
@@ -469,9 +470,13 @@ export default function DashboardPage() {
       <div className="dash-glow" />
       <header className="dash-header">
         <div className="dash-brand">
-          <div className="dash-mark">DF</div>
+          {LOGO_URL ? (
+            <img src={LOGO_URL} alt="" className="dash-logo" />
+          ) : (
+            <div className="dash-mark">DF</div>
+          )}
           <div>
-            <h1 className="dash-title">Dataframe</h1>
+            <h1 className="dash-title">{APP_TITLE}</h1>
           </div>
         </div>
         <div className="dash-actions">

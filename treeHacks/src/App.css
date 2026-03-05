@@ -218,6 +218,23 @@
   letter-spacing: 0.08em;
 }
 
+.dash-logo {
+  height: 56px;
+  width: auto;
+  max-width: 180px;
+  object-fit: contain;
+  display: block;
+}
+
+.app-logo {
+  height: 64px;
+  width: auto;
+  max-width: 200px;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto 1rem;
+}
+
 .dash-kicker {
   text-transform: uppercase;
   letter-spacing: 0.2em;

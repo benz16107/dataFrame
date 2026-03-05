@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchProfile, getLoginUrl } from '@/lib/auth'
+import { APP_TITLE, LOGO_URL } from '@/lib/brand'
 
 export default function LoginPage() {
   const [redirectUrl, setRedirectUrl] = useState('')
@@ -37,7 +38,8 @@ export default function LoginPage() {
     <div className='app-shell'>
       <div className='app-card app-card-sm app-center'>
         <div>
-          <h1 className='app-title'>DataFrame</h1>
+          {LOGO_URL && <img src={LOGO_URL} alt="" className="app-logo" />}
+          <h1 className='app-title'>{APP_TITLE}</h1>
           <p className='app-subtitle'>Redirecting to Auth0 login...</p>
         </div>
 
