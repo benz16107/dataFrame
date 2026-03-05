@@ -881,6 +881,9 @@
   padding: 0.5rem 1rem;
   font-size: 0.84rem;
   border-radius: 12px;
+  background: #ffffff;
+  border-color: rgba(15, 23, 42, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
 .canvas-options-panel {
@@ -891,7 +894,7 @@
   width: 260px;
   border-radius: 16px;
   border: 1px solid rgba(15, 23, 42, 0.14);
-  background: rgba(255, 255, 255, 0.95);
+  background: #ffffff;
   box-shadow: 0 16px 30px rgba(15, 23, 42, 0.16);
   padding: 0.75rem;
 }
