@@ -1,4 +1,4 @@
-import { ChangeEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ChangeEvent, createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { Tldraw, Editor, DefaultActionsMenu, DefaultQuickActions, DefaultStylePanel, TLComponents, TldrawOptions, TldrawUiToolbar, getSnapshot, useEditor, useValue } from "tldraw";
 import "tldraw/tldraw.css";
 import { CodeBlockUtil, CodeBlockTool } from "../shapes/CodeBlock";
@@ -31,12 +31,53 @@ const customTools = [CodeBlockTool]
 const shapeUtils = [CodeBlockUtil, NodeShapeUtil, ConnectionShapeUtil]
 const bindingUtils = [ConnectionBindingUtil]
 
+type CanvasPreviewContextValue = {
+  pendingPreviewCanvasId: string | null
+  setPendingPreviewCanvasId: (id: string | null) => void
+}
+const CanvasPreviewContext = createContext<CanvasPreviewContextValue>({
+  pendingPreviewCanvasId: null,
+  setPendingPreviewCanvasId: () => {},
+})
+
+/** Runs toImageDataUrl inside Tldraw's UI context to avoid useCurrentTranslation errors. */
+function CanvasPreviewRunner() {
+  const editor = useEditor()
+  const { pendingPreviewCanvasId, setPendingPreviewCanvasId } = useContext(CanvasPreviewContext)
+  useEffect(() => {
+    if (!pendingPreviewCanvasId) return
+    const shapes = editor.getCurrentPageShapes()
+    if (shapes.length === 0) {
+      saveCanvasPreview(pendingPreviewCanvasId, null)
+      setPendingPreviewCanvasId(null)
+      return
+    }
+    let cancelled = false
+    editor
+      .toImageDataUrl(shapes, { format: "png", scale: 1 })
+      .then((image) => {
+        if (!cancelled) {
+          saveCanvasPreview(pendingPreviewCanvasId, image.url)
+        }
+      })
+      .catch((err) => console.error("Error generating canvas preview:", err))
+      .finally(() => {
+        if (!cancelled) setPendingPreviewCanvasId(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editor, pendingPreviewCanvasId, setPendingPreviewCanvasId])
+  return null
+}
+
 // Customize tldraw's UI components to add workflow-specific functionality
 const components: TLComponents = {
   InFrontOfTheCanvas: () => (
     <>
       <OnCanvasComponentPicker />
       <WorkflowRegions />
+      <CanvasPreviewRunner />
     </>
   ),
   Toolbar: () => (
@@ -200,6 +241,7 @@ export default function CanvasPage() {
   })
   const [isClearModalOpen, setIsClearModalOpen] = useState(false);
   const [isClearingCanvas, setIsClearingCanvas] = useState(false);
+  const [pendingPreviewCanvasId, setPendingPreviewCanvasId] = useState<string | null>(null);
 
   const canvasId = searchParams.get("id");
   useEffect(() => {
@@ -248,24 +290,8 @@ export default function CanvasPage() {
     }
   };
 
-  const updateCanvasPreview = useCallback(async (canvasIdForPreview: string) => {
-    if (!editorRef.current) return;
-
-    const shapes = editorRef.current.getCurrentPageShapes();
-    if (shapes.length === 0) {
-      saveCanvasPreview(canvasIdForPreview, null);
-      return;
-    }
-
-    try {
-      const image = await editorRef.current.toImageDataUrl(shapes, {
-        format: "png",
-        scale: 1,
-      });
-      saveCanvasPreview(canvasIdForPreview, image.url);
-    } catch (error) {
-      console.error("Error generating canvas preview:", error);
-    }
+  const updateCanvasPreview = useCallback((canvasIdForPreview: string) => {
+    setPendingPreviewCanvasId(canvasIdForPreview);
   }, []);
 
   const loadShapes = (id: string) => {
@@ -589,10 +615,14 @@ export default function CanvasPage() {
       </div>
     );
   }
+  const tldrawLicenseKey = import.meta.env.VITE_TLDRAW_LICENSE_KEY as string | undefined;
+
   return (
     <div className="canvas-page" data-bg={backgroundPreset} ref={canvasPageRef}>
+      <CanvasPreviewContext.Provider value={{ pendingPreviewCanvasId, setPendingPreviewCanvasId }}>
         <Tldraw
           key={activeCanvasId}
+          licenseKey={tldrawLicenseKey}
             options={options}
             overrides={overrides}
             shapeUtils={shapeUtils}
@@ -617,6 +647,7 @@ export default function CanvasPage() {
                 disableTransparency(editor, ['node', 'connection'])
             }}
         />
+      </CanvasPreviewContext.Provider>
       <div className="canvas-top-left-actions">
         <button
           onClick={() => navigate("/dashboard")}
