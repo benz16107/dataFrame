@@ -317,7 +317,7 @@ export default function CanvasPage() {
 
         const shapes = shapeData
           .map((s: { data: object }) => s.data)
-          .filter((shape: unknown) => !(isRecord(shape) && shape.type === 'bot-shape'));
+          .filter((shape: unknown) => !(isRecord(shape) && shape.type === 'bot-shape')) as Parameters<Editor['createShapes']>[0];
         editorRef.current.createShapes(shapes);
         lastSavedShapesRef.current = JSON.stringify(shapes, null, 2)
         void updateCanvasPreview(id)
