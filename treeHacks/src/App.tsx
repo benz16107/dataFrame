@@ -7,6 +7,7 @@ import LoginPage from './pages/login'
 import CanvasPage from './pages/canvas'
 import DashboardPage from './pages/dashboard'
 import { fetchProfile } from './lib/auth'
+import { APP_TITLE, LOGO_URL } from './lib/brand'
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
@@ -34,7 +35,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
     return (
       <div className='app-shell'>
         <div className='app-card app-card-sm app-center'>
-          <h1 className='app-title'>DataFrame</h1>
+          {LOGO_URL && <img src={LOGO_URL} alt="" className="app-logo" />}
+          <h1 className='app-title'>{APP_TITLE}</h1>
           <p className='app-subtitle'>Loading session...</p>
         </div>
       </div>
@@ -49,6 +51,18 @@ function RequireAuth({ children }: { children: ReactNode }) {
 }
 
 function App() {
+  useEffect(() => {
+    if (LOGO_URL) {
+      let link = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+      if (!link) {
+        link = document.createElement('link')
+        link.rel = 'icon'
+        document.head.appendChild(link)
+      }
+      link.href = LOGO_URL
+    }
+  }, [])
+
   return (
     <BrowserRouter>
       <Routes>
