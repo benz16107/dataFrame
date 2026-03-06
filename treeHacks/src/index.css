@@ -34,6 +34,7 @@ body {
 
 .NodeShape {
 	--node-type-border: rgba(15, 23, 42, 0.22);
+	position: relative;
 	border-radius: var(--tl-radius-3);
 	background: var(--tl-color-panel);
 	box-shadow: var(--node-shadow-border);
@@ -172,7 +173,6 @@ body {
 }
 
 .NodeRow {
-	position: relative;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
@@ -276,23 +276,15 @@ body {
 			0 0 0 2px var(--tl-color-selected);
 	}
 
-	/* Input port (left): hit area to the left of node, dot at node edge */
-	&.Port_end {
-		left: -28px;
-		&::before {
-			right: 0;
-			left: auto;
-		}
-	}
-
-	/* Output port (right): hit area ends at node edge so it's not clipped (e.g. in CodeNode) */
-	&.Port_start {
+	/* Dot placement: input port dot at right edge of hit area (node edge), output at left edge */
+	&.Port_end::before {
 		right: 0;
 		left: auto;
-		&::before {
-			right: 0;
-			left: auto;
-		}
+	}
+
+	&.Port_start::before {
+		left: 0;
+		right: auto;
 	}
 
 	&.Port_eligible::before {
@@ -497,7 +489,8 @@ body {
 	width: 100%;
 	min-height: 200px;
 	min-width: 0;
-	overflow: hidden;
+	/* Allow input/output port circles to extend outside node (they use left: -28px and left: 100%) */
+	overflow: visible;
 }
 
 .CodeNode-ports {

@@ -70,12 +70,23 @@ export function Port({ shapeId, portId }: { shapeId: TLShapeId; portId: PortId }
 		[editor, shapeId, port.terminal]
 	)
 
+	// Position port at (port.x, port.y) in shape space so the circle lines up with connection attachment
+	const posStyle =
+		port.terminal === 'end'
+			? { left: -28, top: port.y, transform: 'translateY(-50%)' as const }
+			: { left: port.x, top: port.y, transform: 'translateY(-50%)' as const }
+
 	return (
 		<div
 			className={classNames(
 				`Port Port_${port.terminal}`,
 				isHinting ? 'Port_hinting' : isEligible ? 'Port_eligible' : undefined
 			)}
+			style={{
+				left: `${posStyle.left}px`,
+				top: `${posStyle.top}px`,
+				transform: posStyle.transform,
+			}}
 			onPointerDown={() => {
 				editor.setCurrentTool('select.pointing_port', {
 					shapeId,
