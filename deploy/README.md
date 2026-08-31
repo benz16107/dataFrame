@@ -1,3 +1,12 @@
+> **⚠️ These manifests are NOT how this project is deployed.**
+> DataFrame runs on **DigitalOcean App Platform**, auto-deploying from `benz16107/dataFrame` on push
+> to `main`. Live at **https://dataframe.space**. Secrets are App Platform environment variables,
+> not Kubernetes Secrets.
+>
+> Everything below describes an **abandoned Vultr VKE attempt**. The hostname
+> `216-128-144-40.sslip.io` baked into `ingress-*.yaml` is dead. Kept for reference only —
+> do not follow these steps expecting to reproduce the live site.
+
 # Deployment Guide (Vultr VKE + GHCR)
 
 This folder contains the manifests and Dockerfiles needed to deploy the project to Vultr Kubernetes Engine (VKE).
@@ -20,7 +29,7 @@ This folder contains the manifests and Dockerfiles needed to deploy the project 
 - `deploy/ingress-frontend.yaml`
 
 ## Notes Before Deploying
-- `deploy/backend-secret.yaml` contains Auth0 secrets. Replace values before committing or use placeholders.
+- `deploy/backend-secret.yaml` was **removed** — it had a real Auth0 client secret committed in plaintext. Never commit secrets; use App Platform env vars of type SECRET.
 - Update `APP_BASE_URL` to the final public hostname.
 - Update `deploy/ingress-*.yaml` with the same hostname.
 - Build the frontend with `VITE_API_BASE_URL` set to `https://<HOST>/api`.
